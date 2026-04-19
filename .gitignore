@@ -35,3 +35,7 @@ backend/weights/*
 # OS
 .DS_Store
 Thumbs.db
+
+# Other
+c.sh
+c.txt
