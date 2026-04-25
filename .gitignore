@@ -37,5 +37,6 @@ backend/weights/*
 Thumbs.db
 
 # Other
+c.py
 c.sh
 c.txt
