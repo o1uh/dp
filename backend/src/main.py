@@ -11,6 +11,7 @@ from src.modules.auth.routers.login import router as login_router
 from src.modules.auth.routers.register import router as register_router
 from src.modules.auth.routers.reset import router as reset_router
 from src.modules.users.routers.profile import router as profile_router
+from src.modules.storage.routers.files import router as files_router
 
 app = FastAPI(title="Audio Platform API")
 
@@ -37,3 +38,6 @@ app.include_router(login_router, prefix="/api/auth")
 app.include_router(register_router, prefix="/api/auth")
 app.include_router(reset_router, prefix="/api/auth")
 app.include_router(profile_router, prefix="/api/users")
+
+# Storage
+app.include_router(files_router, prefix="/api")
