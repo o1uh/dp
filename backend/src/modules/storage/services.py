@@ -13,30 +13,43 @@ BUCKET_NAME = "audio-platform-uploads"
 async def init_upload(data: FileUploadRequest) -> FileUploadResponse:
     async with UnitOfWork() as uow:
         repo = FileRepository(uow.session)
-        
         existing_file = await repo.get_by_hash(data.file_hash)
-        if existing_file and existing_file.processing_status == FileProcessingStatus.ready:
-            stmt = select(Stem).where(Stem.file_id == existing_file.id)
-            result = await uow.session.execute(stmt)
-            stems = result.scalars().all()
-            
-            stems_data = [
-                {
-                    "stem_class": s.stem_class, 
-                    "s3_key_flac": s.s3_key_flac, 
-                    "s3_key_mp3": s.s3_key_mp3
-                } for s in stems
-            ]
+        
+        if existing_file:
+            # если файл уже загружен или обрабатывается
+            if existing_file.processing_status in [FileProcessingStatus.uploaded, FileProcessingStatus.processing, FileProcessingStatus.ready]:
+                stems_data = []
+                
+                if existing_file.processing_status == FileProcessingStatus.ready:
+                    stmt = select(Stem).where(Stem.file_id == existing_file.id)
+                    result = await uow.session.execute(stmt)
+                    stems = result.scalars().all()
+                    stems_data = [
+                        {
+                            "stem_class": s.stem_class, 
+                            "s3_key_flac": s.s3_key_flac, 
+                            "s3_key_mp3": s.s3_key_mp3
+                        } for s in stems
+                    ]
 
+                return FileUploadResponse(
+                    is_duplicate=True,
+                    file_id=existing_file.id,
+                    s3_key=existing_file.s3_key_original,
+                    stems=stems_data if stems_data else None
+                )
+            
+            # повторная выдача ссылки, если загрузка прервалась (awaiting_upload) или была ошибка
+            upload_url = await generate_put_url(BUCKET_NAME, existing_file.s3_key_original, existing_file.mime_type)
             return FileUploadResponse(
-                is_duplicate=True,
+                is_duplicate=False,
+                upload_url=upload_url,
                 file_id=existing_file.id,
-                s3_key=existing_file.s3_key_original,
-                stems=stems_data
+                s3_key=existing_file.s3_key_original
             )
 
+        #новый файл
         s3_key = f"originals/{uuid.uuid4()}_{data.file_hash}.audio"
-        
         new_file = File(
             file_hash=data.file_hash,
             s3_key_original=s3_key,
@@ -48,8 +61,7 @@ async def init_upload(data: FileUploadRequest) -> FileUploadResponse:
         repo.add(new_file)
         await uow.session.flush()
 
-        upload_url = await generate_put_url(BUCKET_NAME, s3_key)
-        
+        upload_url = await generate_put_url(BUCKET_NAME, s3_key, data.mime_type)
         response = FileUploadResponse(
             is_duplicate=False,
             upload_url=upload_url,
