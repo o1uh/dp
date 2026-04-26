@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useUserStore } from '@/entities/user/model/store';
 
 export const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -8,14 +9,36 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  // токен будет подставляться логикой Zustand в модуле Auth
+  const token = useUserStore.getState().accessToken;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // логика refresh-токена будет добавлена на этапе модуля Auth
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const refreshToken = useUserStore.getState().refreshToken;
+        if (!refreshToken) throw new Error('No refresh token');
+
+        const { data } = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
+          refresh_token: refreshToken,
+        });
+
+        useUserStore.getState().setTokens(data.access_token, data.refresh_token);
+        originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        useUserStore.getState().logout();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
     return Promise.reject(error);
   }
 );
