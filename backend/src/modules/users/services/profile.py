@@ -68,4 +68,4 @@ async def soft_delete_user(user_id: str) -> None:
             user.deleted_at = datetime.utcnow()
             user.is_active = False
             await auth_repo.revoke_all_user_tokens(user_id)
-            await uow.commit()
+            # await uow.commit()
