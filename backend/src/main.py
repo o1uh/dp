@@ -1,19 +1,26 @@
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
-import aioboto3  # <-- Добавлен импорт
+import aioboto3
 
 from src.core.health import router as health_router
 from src.core.exceptions import AppException
 from src.core.handlers import app_exception_handler, integrity_error_handler
 from src.core.logger import logger
-from src.core.config import settings  # <-- Добавлен импорт
+from src.core.config import settings
 
 from src.modules.auth.routers.login import router as login_router
 from src.modules.auth.routers.register import router as register_router
 from src.modules.auth.routers.reset import router as reset_router
 from src.modules.users.routers.profile import router as profile_router
 from src.modules.storage.routers.files import router as files_router
+
+from src.modules.processing.routers.tasks import router as tasks_router
+from src.modules.processing.routers.webhooks import router as webhooks_router
+from src.modules.notifications.routers.rest import router as notif_rest_router
+from src.modules.notifications.routers.ws import router as notif_ws_router
+from src.infrastructure.redis.pubsub import pubsub_listener
 
 app = FastAPI(title="Audio Platform API")
 
@@ -36,6 +43,7 @@ async def startup_event():
                 logger.info("Bucket 'audio-platform-uploads' created successfully.")
     except Exception as e:
         logger.error(f"Failed to initialize S3 bucket: {e}")
+    asyncio.create_task(pubsub_listener())
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,3 +67,9 @@ app.include_router(profile_router, prefix="/api/users")
 
 # Storage
 app.include_router(files_router, prefix="/api")
+
+# Processing & Notifications
+app.include_router(tasks_router, prefix="/api")
+app.include_router(webhooks_router, prefix="/api")
+app.include_router(notif_rest_router, prefix="/api")
+app.include_router(notif_ws_router, prefix="/api")
