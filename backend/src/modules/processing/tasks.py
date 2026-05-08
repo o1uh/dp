@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import requests
+import logging
 from pathlib import Path
 from src.core.worker.celery_app import celery_app
 from src.ml_engine.s3_sync import download_file, upload_file
@@ -11,8 +12,22 @@ from src.core.config import settings
 BUCKET_NAME = "audio-platform-uploads"
 WEBHOOK_URL = "http://api:8000/api/processing/webhooks"
 
+def _send_webhook(payload: dict):
+    headers = {"X-Internal-Token": settings.INTERNAL_WEBHOOK_TOKEN}
+    try:
+        requests.post(WEBHOOK_URL, json=payload, headers=headers, timeout=10)
+    except requests.RequestException as e:
+        logging.error(f"Failed to send webhook for task {payload.get('task_id')}: {e}")
+
 @celery_app.task(bind=True, name="process_audio", acks_late=True)
 def process_audio(self, task_id: str, s3_key_original: str, file_id: str):
+    _send_webhook({
+        "task_id": task_id,
+        "file_id": file_id,
+        "status": "processing",
+        "stems": []
+    })
+
     temp_dir = Path(tempfile.mkdtemp())
     input_file = temp_dir / "input.audio"
     
@@ -49,12 +64,8 @@ def process_audio(self, task_id: str, s3_key_original: str, file_id: str):
     except Exception as e:
         payload["status"] = "failed"
         payload["error_message"] = str(e)
+        logging.error(f"Task {task_id} failed: {e}")
+        raise
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
-
-        headers = {"X-Internal-Token": settings.INTERNAL_WEBHOOK_TOKEN}
-        try:
-            requests.post(WEBHOOK_URL, json=payload, headers=headers, timeout=10)
-        except requests.RequestException as e:
-            import logging
-            logging.error(f"Failed to send webhook for task {task_id}: {e}")
+        _send_webhook(payload)

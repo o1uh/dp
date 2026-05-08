@@ -1,6 +1,6 @@
 from src.infrastructure.db.uow import UnitOfWork
 from src.modules.processing.models import ProcessingTask
-from src.modules.processing.tasks import process_audio
+from src.core.worker.celery_app import celery_app
 from src.modules.storage.repositories import FileRepository
 from src.core.exceptions import NotFoundError
 
@@ -20,7 +20,10 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
         uow.session.add(task)
         await uow.session.flush()
 
-        celery_task = process_audio.delay(str(task.id), file_obj.s3_key_original, file_id)
+        celery_task = celery_app.send_task(
+            "process_audio",
+            args=[str(task.id), file_obj.s3_key_original, file_id]
+        )
         
         task.celery_task_id = celery_task.id
         await uow.commit()

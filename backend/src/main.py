@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
 import aioboto3
 
+from src.infrastructure.db.session import engine
+from src.infrastructure.db.base import Base
+
 from src.core.health import router as health_router
 from src.core.exceptions import AppException
 from src.core.handlers import app_exception_handler, integrity_error_handler
@@ -29,6 +32,13 @@ async def startup_event():
     logger.info("Application is starting up...")
     
     try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables verified/created successfully.")
+    except Exception as e:
+        logger.error(f"Failed to create database tables: {e}")
+
+    try:
         session = aioboto3.Session()
         async with session.client(
             "s3",
@@ -43,6 +53,7 @@ async def startup_event():
                 logger.info("Bucket 'audio-platform-uploads' created successfully.")
     except Exception as e:
         logger.error(f"Failed to initialize S3 bucket: {e}")
+        
     asyncio.create_task(pubsub_listener())
 
 app.add_middleware(
@@ -72,4 +83,4 @@ app.include_router(files_router, prefix="/api")
 app.include_router(tasks_router, prefix="/api")
 app.include_router(webhooks_router, prefix="/api")
 app.include_router(notif_rest_router, prefix="/api")
-app.include_router(notif_ws_router, prefix="/api")
+app.include_router(notif_ws_router)

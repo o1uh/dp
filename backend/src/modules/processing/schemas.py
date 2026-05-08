@@ -9,7 +9,7 @@ class TaskStartRequest(BaseModel):
 class TaskStatusResponse(BaseModel):
     id: str
     status: TaskStatus
-    error_message: Optional[str]
+    error_message: Optional[str] = None
 
 class StemPayload(BaseModel):
     stem_class: str
@@ -22,5 +22,5 @@ class WebhookPayload(BaseModel):
     task_id: str
     file_id: str
     status: str
-    error_message: Optional[str]
+    error_message: Optional[str] = None
     stems: List[StemPayload] = []

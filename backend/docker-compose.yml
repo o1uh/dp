@@ -75,11 +75,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    command: celery -A src.worker:celery_app worker --loglevel=info --concurrency=1
+    env_file:
+      - .env
+    command: celery -A src.worker:celery_app worker --loglevel=info --pool=solo
     volumes:
       - ./src:/app/src
       - ./weights:/app/weights
     environment:
+      - C_FORCE_ROOT=true
       - REDIS_URL=redis://redis:6379/0
       - S3_ENDPOINT=http://minio:9000
       - S3_PUBLIC_ENDPOINT=${S3_PUBLIC_ENDPOINT}
