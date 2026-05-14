@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/entities/user/model/store';
 import { Sidebar } from '@/widgets/layout/Sidebar';
@@ -8,17 +8,21 @@ import { Header } from '@/widgets/layout/Header';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const isAuth = useUserStore((state) => state.isAuth);
-  const [mounted, setMounted] = useState(false);
+  const { isAuth, _hasHydrated } = useUserStore();
 
   useEffect(() => {
-    setMounted(true);
-    if (!isAuth) {
+    if (_hasHydrated && !isAuth) {
       router.replace('/login');
     }
-  }, [isAuth, router]);
+  }, [_hasHydrated, isAuth, router]);
 
-  if (!mounted || !isAuth) return null;
+  if (!_hasHydrated || !isAuth) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background text-primary">
+        <span className="animate-pulse">Проверка сессии...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

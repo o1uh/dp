@@ -15,9 +15,12 @@ WEBHOOK_URL = "http://api:8000/api/processing/webhooks"
 def _send_webhook(payload: dict):
     headers = {"X-Internal-Token": settings.INTERNAL_WEBHOOK_TOKEN}
     try:
-        requests.post(WEBHOOK_URL, json=payload, headers=headers, timeout=10)
+        response = requests.post(WEBHOOK_URL, json=payload, headers=headers, timeout=10)
+        response.raise_for_status() 
     except requests.RequestException as e:
-        logging.error(f"Failed to send webhook for task {payload.get('task_id')}: {e}")
+        error_msg = response.text if 'response' in locals() and response else str(e)
+        logging.error(f"Failed to send webhook for task {payload.get('task_id')}. API Response: {error_msg}")
+        raise
 
 @celery_app.task(bind=True, name="process_audio", acks_late=True)
 def process_audio(self, task_id: str, s3_key_original: str, file_id: str):

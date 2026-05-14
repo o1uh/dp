@@ -15,21 +15,30 @@ export default function WebSocketProvider({ children }: { children: React.ReactN
   useEffect(() => {
     if (!token) return;
 
+    let isMounted = true;
+    let timeoutId: NodeJS.Timeout;
+
     const connect = () => {
+      if (!isMounted) return;
       const url = `${process.env.NEXT_PUBLIC_WS_URL}/notifications?token=${token}`;
       ws.current = new WebSocket(url);
 
-      ws.current.onmessage = (event) => {
+       ws.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           
           if (data.event === 'TrackReady') {
+            if (data.status === 'processing') return;
+
             addNotification({
               event: data.event,
               message: data.status === 'completed' ? 'Обработка файла завершена' : 'Ошибка обработки',
-              status: data.status
+              status: data.status,
+              task_id: data.task_id
             });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRACKS.LIST() });
+            if (data.status === 'completed') {
+                queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRACKS.LIST() });
+            }
           }
         } catch (e) {
           console.error("WS Parse error", e);
@@ -37,14 +46,21 @@ export default function WebSocketProvider({ children }: { children: React.ReactN
       };
 
       ws.current.onclose = () => {
-        setTimeout(connect, 5000);
+        if (isMounted) {
+            timeoutId = setTimeout(connect, 5000);
+        }
       };
     };
 
     connect();
 
     return () => {
-      ws.current?.close();
+      isMounted = false;
+      clearTimeout(timeoutId);
+      if (ws.current) {
+          ws.current.onclose = null;
+          ws.current.close();
+      }
     };
   }, [token, addNotification, queryClient]);
 

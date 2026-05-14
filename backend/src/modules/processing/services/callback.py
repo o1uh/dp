@@ -1,5 +1,6 @@
 import json
 import httpx
+import uuid
 from datetime import datetime
 from redis.asyncio import Redis
 from sqlalchemy import select, update
@@ -14,16 +15,19 @@ from src.core.config import settings
 from src.core.logger import logger
 
 async def process_webhook(payload: WebhookPayload):
+    task_uuid = uuid.UUID(payload.task_id)
+    file_uuid = uuid.UUID(payload.file_id)
+
     async with UnitOfWork() as uow:
         result = await uow.session.execute(
-            select(ProcessingTask).where(ProcessingTask.id == payload.task_id)
+            select(ProcessingTask).where(ProcessingTask.id == task_uuid)
         )
         task = result.scalar_one_or_none()
         if not task:
             return
 
         file_result = await uow.session.execute(
-            select(File).where(File.id == payload.file_id)
+            select(File).where(File.id == file_uuid)
         )
         file_obj = file_result.scalar_one_or_none()
         
@@ -39,8 +43,8 @@ async def process_webhook(payload: WebhookPayload):
             total_bytes = 0
             for stem_data in payload.stems:
                 stem = Stem(
-                    file_id=payload.file_id,
-                    task_id=payload.task_id,
+                    file_id=file_uuid,
+                    task_id=task_uuid,
                     **stem_data.model_dump()
                 )
                 uow.session.add(stem)
