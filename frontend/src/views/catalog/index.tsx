@@ -8,11 +8,13 @@ import { SearchFilters } from '@/features/catalog/SearchFilters';
 import { SaveToLibraryBtn } from '@/features/catalog/SaveToLibraryBtn';
 import { Button } from '@/shared/ui/Button';
 import { QUERY_KEYS } from '@/shared/api/query-keys';
+import { useUserStore } from '@/entities/user/model/store';
 
 export const CatalogView = () => {
   const searchParams = useSearchParams();
   const q = searchParams.get('q') || undefined;
   const genre = searchParams.get('genre') || undefined;
+  const currentUserId = useUserStore(state => state.profile?.id);
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEYS.CATALOG.SEARCH({ q, genre }),
@@ -20,7 +22,6 @@ export const CatalogView = () => {
   });
 
   const handlePlayStub = (id: string) => {
-    console.log(`Stub: Play track ${id}`);
     catalogApi.registerPlay(id);
   };
 
@@ -54,7 +55,16 @@ export const CatalogView = () => {
                   <Button variant="primary" className="w-full text-xs py-1" onClick={() => handlePlayStub(track.id)}>
                     ▶ Play
                   </Button>
-                  <SaveToLibraryBtn trackId={track.id} />
+                  
+                  {currentUserId === track.user_id ? (
+                    <Button variant="secondary" className="w-full text-xs py-1 opacity-50 cursor-not-allowed" disabled>
+                      Мой трек
+                    </Button>
+                  ) : (
+                    <div className="w-full">
+                      <SaveToLibraryBtn trackId={track.id} isSaved={track.is_saved} />
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

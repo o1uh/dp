@@ -1,8 +1,9 @@
 from typing import List, Tuple
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, and_, exists
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.modules.library.models import Track
+from src.modules.library.models import Track, UserSavedTrack
 from src.common.enums import VisibilityStatus
+import uuid
 
 class CatalogRepository:
     def __init__(self, session: AsyncSession):
@@ -10,11 +11,12 @@ class CatalogRepository:
 
     async def search_public_tracks(
         self, 
+        current_user_id: str,
         query: str = None, 
         genre: str = None, 
         limit: int = 20, 
         offset: int = 0
-    ) -> Tuple[List[Track], int]:
+    ) -> Tuple[List[Tuple[Track, bool]], int]:
         
         base_stmt = select(Track).where(
             Track.visibility == VisibilityStatus.public,
@@ -24,10 +26,7 @@ class CatalogRepository:
         if query:
             formatted_query = ' | '.join(query.split())
             base_stmt = base_stmt.where(
-                or_(
-                    Track.search_vector.op('@@')(func.to_tsquery('simple', formatted_query)),
-                    Track.title.ilike(f"%{query}%")
-                )
+                Track.search_vector.op('@@')(func.to_tsquery('simple', formatted_query))
             )
 
         if genre:
@@ -37,9 +36,18 @@ class CatalogRepository:
         total_result = await self.session.execute(count_stmt)
         total = total_result.scalar_one()
 
-        stmt = base_stmt.order_by(Track.play_count.desc(), Track.created_at.desc()).limit(limit).offset(offset)
+        is_saved_subq = select(UserSavedTrack).where(
+            and_(
+                UserSavedTrack.user_id == uuid.UUID(current_user_id),
+                UserSavedTrack.track_id == Track.id
+            )
+        ).exists()
+
+        stmt = base_stmt.add_columns(is_saved_subq.label("is_saved"))
+        stmt = stmt.order_by(Track.play_count.desc(), Track.created_at.desc()).limit(limit).offset(offset)
+        
         result = await self.session.execute(stmt)
-        items = list(result.scalars().all())
+        items = result.all()
 
         return items, total
 

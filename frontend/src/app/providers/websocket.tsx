@@ -3,12 +3,13 @@
 import React, { useEffect, useRef } from 'react';
 import { useUserStore } from '@/entities/user/model/store';
 import { useNotificationStore } from '@/entities/notification/model/store';
+import { useFileStore } from '@/entities/file/model/store';
 import { useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@/shared/api/query-keys';
 
 export default function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const token = useUserStore((state) => state.accessToken);
   const addNotification = useNotificationStore((state) => state.addNotification);
+  const resetFileStore = useFileStore((state) => state.reset);
   const queryClient = useQueryClient();
   const ws = useRef<WebSocket | null>(null);
 
@@ -36,8 +37,11 @@ export default function WebSocketProvider({ children }: { children: React.ReactN
               status: data.status,
               task_id: data.task_id
             });
+
+            resetFileStore();
+
             if (data.status === 'completed') {
-                queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRACKS.LIST() });
+                queryClient.invalidateQueries({ queryKey: ['tracks'] });
             }
           }
         } catch (e) {
@@ -62,7 +66,7 @@ export default function WebSocketProvider({ children }: { children: React.ReactN
           ws.current.close();
       }
     };
-  }, [token, addNotification, queryClient]);
+  }, [token, addNotification, queryClient, resetFileStore]);
 
   return <>{children}</>;
 }

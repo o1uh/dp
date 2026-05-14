@@ -8,26 +8,30 @@ import { QUERY_KEYS } from '@/shared/api/query-keys';
 
 interface SaveToLibraryBtnProps {
   trackId: string;
+  isSaved: boolean;
 }
 
-export const SaveToLibraryBtn: React.FC<SaveToLibraryBtnProps> = ({ trackId }) => {
+export const SaveToLibraryBtn: React.FC<SaveToLibraryBtnProps> = ({ trackId, isSaved }) => {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: () => catalogApi.saveAlias(trackId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRACKS.LIST() });
+      queryClient.invalidateQueries({ queryKey: ['catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['tracks'] });
     }
   });
+
+  const isCompleted = isSaved || mutation.isSuccess;
 
   return (
     <Button 
       variant="secondary" 
       className="text-xs py-1"
       onClick={() => mutation.mutate()}
-      disabled={mutation.isPending || mutation.isSuccess}
+      disabled={isCompleted || mutation.isPending}
     >
-      {mutation.isSuccess ? 'Сохранено' : 'В библиотеку'}
+      {isCompleted ? 'Сохранено' : 'В библиотеку'}
     </Button>
   );
 };

@@ -3,11 +3,11 @@ from src.infrastructure.db.uow import UnitOfWork
 from src.modules.catalog.repositories import CatalogRepository
 from src.modules.library.models import Track
 
-async def search_catalog(query: str, genre: str, page: int, limit: int) -> Tuple[List[Track], int]:
+async def search_catalog(current_user_id: str, query: str, genre: str, page: int, limit: int) -> Tuple[List[Tuple[Track, bool]], int]:
     offset = (page - 1) * limit
     async with UnitOfWork() as uow:
         repo = CatalogRepository(uow.session)
-        items, total = await repo.search_public_tracks(query, genre, limit, offset)
+        items, total = await repo.search_public_tracks(current_user_id, query, genre, limit, offset)
         return items, total
 
 async def register_track_play(track_id: str) -> None:
