@@ -3,6 +3,7 @@
 import React, { useCallback, useRef } from 'react';
 import { useFileStore } from '@/entities/file/model/store';
 import { fileApi } from '@/entities/file/api';
+import { apiClient } from '@/shared/api/rest';
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE } from '@/shared/config/constants';
 
 export const UploadZone = () => {
@@ -50,26 +51,44 @@ export const UploadZone = () => {
         worker.terminate();
 
         setStatus('uploading');
-        const initRes = await fileApi.initUpload({
-          file_hash: hash,
-          mime_type: file.type,
-          file_size_bytes: file.size,
-          duration_sec: duration
-        });
+        
+        try {
+          const initRes = await fileApi.initUpload({
+            file_hash: hash,
+            mime_type: file.type,
+            file_size_bytes: file.size,
+            duration_sec: duration
+          });
 
-        if (initRes.is_duplicate) {
-          setStatus('ready');
-          return;
-        }
+          if (initRes.is_duplicate) {
+            setStatus('ready');
+            return;
+          }
 
-        if (initRes.upload_url && initRes.file_id) {
-          await fileApi.uploadToS3(initRes.upload_url, file, setProgress);
-          await fileApi.confirmUpload(initRes.file_id);
-          setStatus('ready');
+          if (initRes.upload_url && initRes.file_id) {
+            console.log("S3 Upload URL:", initRes.upload_url);
+            
+            await fileApi.uploadToS3(initRes.upload_url, file, setProgress);
+            
+            await fileApi.confirmUpload(initRes.file_id);
+            
+            setStatus('processing');
+            
+            await apiClient.post('/tasks', {
+              file_id: initRes.file_id,
+              model_config: { model: "HT_Demucs_v4" }
+            });
+
+            setTimeout(() => reset(), 2000);
+          }
+        } catch (err: any) {
+          console.error("Upload process error:", err);
+          setError(err.response?.data?.message || err.message || 'Ошибка обработки файла');
         }
       };
     } catch (err) {
-      setError('Ошибка обработки файла');
+      console.error("General error:", err);
+      setError('Критическая ошибка компонента');
     }
   };
 
@@ -99,7 +118,7 @@ export const UploadZone = () => {
       {status === 'uploading' && (
         <div className="w-full max-w-md">
           <div className="flex justify-between text-sm mb-1">
-            <span>Загрузка...</span>
+            <span>Загрузка в S3...</span>
             <span>{Math.round(progress)}%</span>
           </div>
           <div className="w-full bg-slate-700 rounded-full h-2.5">
@@ -107,8 +126,9 @@ export const UploadZone = () => {
           </div>
         </div>
       )}
-      {status === 'ready' && <p className="text-green-500">Файл успешно загружен!</p>}
-      {status === 'error' && <p className="text-red-500">{error}</p>}
+      {status === 'processing' && <p className="text-yellow-500 animate-pulse">Постановка в очередь...</p>}
+      {status === 'ready' && <p className="text-green-500">Успешно!</p>}
+      {status === 'error' && <p className="text-red-500 font-semibold">{error}</p>}
     </div>
   );
 };

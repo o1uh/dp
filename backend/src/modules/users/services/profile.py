@@ -12,7 +12,9 @@ async def register_user(data: UserCreateRequest) -> None:
     async with UnitOfWork() as uow:
         user_repo = UserRepository(uow.session)
         
-        if await user_repo.get_by_email(data.email):
+        email_str = str(data.email)
+        
+        if await user_repo.get_by_email(email_str):
             raise BusinessRuleError("Email already in use")
         if await user_repo.get_by_username(data.username):
             raise BusinessRuleError("Username already in use")
@@ -22,9 +24,11 @@ async def register_user(data: UserCreateRequest) -> None:
 
         new_user = User(
             username=data.username,
-            email=data.email,
+            email=email_str,
             password_hash=hash_password(data.password),
-            role_id=default_role.id if default_role else None
+            role_id=default_role.id if default_role else None,
+            is_active=True,
+            is_email_verified=False
         )
         user_repo.add(new_user)
         await uow.commit()
@@ -68,4 +72,4 @@ async def soft_delete_user(user_id: str) -> None:
             user.deleted_at = datetime.utcnow()
             user.is_active = False
             await auth_repo.revoke_all_user_tokens(user_id)
-            # await uow.commit()
+            await uow.commit()

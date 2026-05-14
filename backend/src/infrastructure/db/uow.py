@@ -1,4 +1,3 @@
-from types import TracebackType
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.db.session import async_session_maker
 
@@ -10,11 +9,10 @@ class UnitOfWork:
         self.session: AsyncSession = self.session_factory()
         return self
 
-    async def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
             await self.rollback()
-        else:
-            await self.commit()
+        
         await self.session.close()
 
     async def commit(self):
