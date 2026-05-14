@@ -19,6 +19,7 @@ class TrackResponse(BaseModel):
     tags: Optional[List[str]]
     visibility: VisibilityStatus
     play_count: int
+    save_count: int
     downloads_count: int
     created_at: datetime
 

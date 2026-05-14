@@ -28,6 +28,8 @@ from src.infrastructure.redis.pubsub import pubsub_listener
 from src.modules.library.routers.tracks import router as tracks_router
 from src.modules.library.routers.stems import router as stems_router
 
+from src.modules.catalog.routers.search import router as catalog_router
+
 app = FastAPI(title="Audio Platform API")
 
 @app.on_event("startup")
@@ -88,6 +90,7 @@ app.include_router(webhooks_router, prefix="/api")
 app.include_router(notif_rest_router, prefix="/api")
 app.include_router(notif_ws_router)
 
-# Library
+# Library & Catalog
 app.include_router(tracks_router, prefix="/api")
 app.include_router(stems_router, prefix="/api")
+app.include_router(catalog_router, prefix="/api")

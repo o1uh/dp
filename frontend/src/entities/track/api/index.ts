@@ -10,6 +10,7 @@ export interface Track {
   tags?: string[];
   visibility: 'private' | 'public' | 'unlisted';
   play_count: number;
+  save_count: number;
   downloads_count: number;
   created_at: string;
 }

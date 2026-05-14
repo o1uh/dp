@@ -6,6 +6,8 @@ from src.modules.library.services import update_track_metadata, get_track_downlo
 from src.infrastructure.db.uow import UnitOfWork
 from src.modules.library.repositories import LibraryRepository
 from datetime import datetime
+from src.modules.library.schemas import AliasCreateRequest
+from src.modules.library.models import UserSavedTrack
 
 router = APIRouter(prefix="/tracks", tags=["Library"])
 
@@ -31,6 +33,7 @@ async def list_tracks(
                 tags=t.tags,
                 visibility=t.visibility,
                 play_count=t.play_count,
+                save_count=t.save_count,
                 downloads_count=t.downloads_count,
                 created_at=t.created_at
             ) for t in tracks
@@ -56,3 +59,24 @@ async def delete_track(track_id: str, current_user: User = Depends(get_current_u
 async def download_track(track_id: str, current_user: User = Depends(get_current_user)):
     url = await get_track_download_url(str(current_user.id), track_id)
     return {"download_url": url}
+
+@router.post("/save-alias", status_code=status.HTTP_201_CREATED)
+async def save_track_to_library(data: AliasCreateRequest, current_user: User = Depends(get_current_user)):
+    async with UnitOfWork() as uow:
+        repo = LibraryRepository(uow.session)
+        
+        original_track = await repo.get_track_by_id(data.original_id)
+        if not original_track or original_track.visibility.value == "private":
+            from src.core.exceptions import NotFoundError
+            raise NotFoundError("Track not found or private")
+
+        saved_track = UserSavedTrack(
+            user_id=current_user.id,
+            track_id=original_track.id
+        )
+        repo.add_saved_track(saved_track)
+        
+        original_track.save_count += 1
+        await uow.commit()
+        
+    return {"status": "saved"}
