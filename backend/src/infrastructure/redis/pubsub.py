@@ -26,6 +26,16 @@ async def pubsub_listener():
                         
                         if user_id and payload:
                             await ws_manager.send_personal_message(user_id, payload)
+                            
+                            if payload.get("event") == "TrackReady" and payload.get("status") == "completed":# Локальный импорт для предотвращения циклических зависимостей
+                                from src.modules.library.services import process_track_ready_event
+                                
+                                file_id = payload.get("file_id")
+                                task_id = payload.get("task_id")
+                                
+                                if file_id and task_id:
+                                    await process_track_ready_event(user_id, file_id, task_id)
+                                    
                     except Exception as e:
                         logger.error(f"Error processing pubsub message: {e}")
                 
