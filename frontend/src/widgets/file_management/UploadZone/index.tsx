@@ -62,6 +62,7 @@ export const UploadZone = () => {
 
           if (initRes.is_duplicate) {
             setStatus('ready');
+            setTimeout(() => reset(), 2000);
             return;
           }
 
@@ -78,8 +79,7 @@ export const UploadZone = () => {
               file_id: initRes.file_id,
               model_config: { model: "HT_Demucs_v4" }
             });
-
-            setTimeout(() => reset(), 2000);
+            
           }
         } catch (err: any) {
           console.error("Upload process error:", err);
@@ -126,7 +126,7 @@ export const UploadZone = () => {
           </div>
         </div>
       )}
-      {status === 'processing' && <p className="text-yellow-500 animate-pulse">Постановка в очередь...</p>}
+      {status === 'processing' && <p className="text-yellow-500 animate-pulse">Идет обработка нейросетью...</p>}
       {status === 'ready' && <p className="text-green-500">Успешно!</p>}
       {status === 'error' && <p className="text-red-500 font-semibold">{error}</p>}
     </div>

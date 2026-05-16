@@ -92,6 +92,7 @@ async def process_webhook(payload: WebhookPayload):
         "payload": {
             "event": "TrackReady",
             "task_id": str(task.id),
+            "file_id": str(file_obj.id) if file_obj else None,
             "status": payload.status
         }
     }
