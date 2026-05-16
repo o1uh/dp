@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/entities/user/model/store';
 import { Sidebar } from '@/widgets/layout/Sidebar';
 import { Header } from '@/widgets/layout/Header';
+import { MiniPlayer } from '@/widgets/global_player/MiniPlayer';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -29,9 +30,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-y-auto p-6 relative">
+        <main className="flex-1 overflow-y-auto p-6 pb-24 relative">
           {children}
         </main>
+        <MiniPlayer />
       </div>
     </div>
   );
