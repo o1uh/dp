@@ -9,20 +9,23 @@ import { SaveToLibraryBtn } from '@/features/catalog/SaveToLibraryBtn';
 import { Button } from '@/shared/ui/Button';
 import { QUERY_KEYS } from '@/shared/api/query-keys';
 import { useUserStore } from '@/entities/user/model/store';
+import { useAudioQueueStore } from '@/entities/audio_queue/model/store';
 
 export const CatalogView = () => {
   const searchParams = useSearchParams();
   const q = searchParams.get('q') || undefined;
   const genre = searchParams.get('genre') || undefined;
   const currentUserId = useUserStore(state => state.profile?.id);
+  const setPlaylist = useAudioQueueStore(state => state.setPlaylist);
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEYS.CATALOG.SEARCH({ q, genre }),
     queryFn: () => catalogApi.search({ q, genre, page: 1, limit: 50 })
   });
 
-  const handlePlayStub = (id: string) => {
-    catalogApi.registerPlay(id);
+  const handlePlay = (track: any) => {
+    catalogApi.registerPlay(track.id);
+    setPlaylist([track], 0);
   };
 
   return (
@@ -52,7 +55,7 @@ export const CatalogView = () => {
                   </div>
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <Button variant="primary" className="w-full text-xs py-1" onClick={() => handlePlayStub(track.id)}>
+                  <Button variant="primary" className="w-full text-xs py-1" onClick={() => handlePlay(track)}>
                     ▶ Play
                   </Button>
                   
