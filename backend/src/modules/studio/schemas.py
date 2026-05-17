@@ -1,9 +1,9 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from uuid import UUID
 
 class StudioTrackDTO(BaseModel):
     id: Optional[str] = None
+    name: Optional[str] = None
     stem_id: Optional[str] = None
     file_id: Optional[str] = None
     track_index: int

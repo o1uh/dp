@@ -1,11 +1,8 @@
 import uuid
-from sqlalchemy import select
 from src.infrastructure.db.uow import UnitOfWork
 from src.modules.studio.repositories import StudioRepository
 from src.modules.storage.repositories import FileRepository
-from src.modules.processing.repositories.stems import StemRepository
 from src.modules.processing.models import ProcessingTask, Stem
-from src.modules.library.models import UserStem
 from src.modules.storage.models import File
 from src.core.worker.celery_app import celery_app
 from src.core.exceptions import NotFoundError, BusinessRuleError
@@ -30,13 +27,9 @@ async def initiate_render(user_id: str, session_id: str) -> str:
 
             s3_key = None
             if track.stem_id:
-                user_stem_stmt = select(UserStem).where(UserStem.id == track.stem_id)
-                user_stem = (await uow.session.execute(user_stem_stmt)).scalar_one_or_none()
-                if user_stem:
-                    phys_stem_stmt = select(Stem).where(Stem.id == user_stem.stem_id)
-                    phys_stem = (await uow.session.execute(phys_stem_stmt)).scalar_one_or_none()
-                    if phys_stem:
-                        s3_key = phys_stem.s3_key_flac
+                phys_stem = await uow.session.get(Stem, track.stem_id)
+                if phys_stem:
+                    s3_key = phys_stem.s3_key_flac
             elif track.file_id:
                 file_repo = FileRepository(uow.session)
                 file_obj = await file_repo.get_by_id(str(track.file_id))

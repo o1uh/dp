@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useStudioSessionStore } from '@/entities/studio_session/model/store';
 import { TransportPanel } from '@/features/studio/TransportPanel';
 import { MixerPanel } from '@/widgets/studio/MixerPanel';
@@ -26,11 +27,11 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
         if (!isMounted) return;
 
         initSession(sessionId, data.project_name);
-        
         setTracks(data.tracks.map((t: any) => ({ ...t, buffer: null, nodes: null })));
         
         const ctx = getAudioContext();
-        data.tracks.forEach(async (track: any) => {
+        
+        await Promise.all(data.tracks.map(async (track: any) => {
           try {
             let url = '';
             if (track.stem_id) {
@@ -41,17 +42,26 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
             
             if (url) {
               const response = await fetch(url);
-              const arrayBuffer = await response.arrayBuffer();
-              const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
               
-              if (isMounted) {
-                setTrackBuffer(track.id, audioBuffer);
+              if (!response.ok) {
+                throw new Error(`S3 Error: ${response.status}`);
+              }
+              
+              const arrayBuffer = await response.arrayBuffer();
+              
+              try {
+                const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+                if (isMounted) {
+                  setTrackBuffer(track.id, audioBuffer);
+                }
+              } catch (decodeError) {
+                console.error(`Decoding failed for ${track.name || track.id}. Likely FLAC/format issue.`);
               }
             }
           } catch (e) {
-            console.error(`Failed to decode track ${track.id}`, e);
+            console.error(`Failed to load track ${track.name || track.id}`, e);
           }
-        });
+        }));
 
       } catch (e) {
         console.error('Failed to load session data:', e);
@@ -75,8 +85,14 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
 
   return (
     <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
-      <header className="h-12 bg-slate-900 border-b border-slate-700 flex items-center px-4">
+      <header className="h-12 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-4">
         <h1 className="text-white font-bold">{projectName}</h1>
+        <Link 
+          href="/library" 
+          className="text-sm font-semibold text-gray-400 hover:text-white px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded transition"
+        >
+          ✕ Выйти
+        </Link>
       </header>
       
       <TransportPanel />

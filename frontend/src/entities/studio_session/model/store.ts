@@ -11,6 +11,7 @@ export interface AudioGraphNodes {
 
 export interface StudioTrack {
   id: string;
+  name?: string;
   stem_id: string | null;
   file_id: string | null;
   track_index: number;
