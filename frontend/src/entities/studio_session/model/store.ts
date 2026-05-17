@@ -107,7 +107,7 @@ export const useStudioSessionStore = create<StudioSessionState>((set, get) => ({
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') ctx.resume();
 
-    const sources: AudioBufferSourceNode[] = [];
+    const sourcesToSync: { node: AudioBufferSourceNode, trimStartMs: number, trimEndMs: number | null }[] = [];
     const newTracks = tracks.map(t => {
       if (t.buffer && t.nodes) {
         if (t.nodes.source) {
@@ -116,13 +116,19 @@ export const useStudioSessionStore = create<StudioSessionState>((set, get) => ({
         const source = ctx.createBufferSource();
         source.buffer = t.buffer;
         source.connect(t.nodes.panner);
-        sources.push(source);
+        
+        sourcesToSync.push({ 
+          node: source, 
+          trimStartMs: t.trim_start_ms, 
+          trimEndMs: t.trim_end_ms 
+        });
+        
         return { ...t, nodes: { ...t.nodes, source } };
       }
       return t;
     });
 
-    syncPlayback({ sourceNodes: sources, startOffset: currentTime, isLoop, duration });
+    syncPlayback({ sourceNodes: sourcesToSync, startOffset: currentTime, isLoop, duration });
     set({ isPlaying: true, tracks: newTracks });
   },
   

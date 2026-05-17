@@ -3,6 +3,7 @@ import { useStudioSessionStore } from '@/entities/studio_session/model/store';
 import { Button } from '@/shared/ui/Button';
 import { getAudioContext } from '@/shared/lib/web-audio/context';
 import { formatTime } from '@/shared/lib/formatting';
+import { ExportSession } from '@/features/studio/ExportSession';
 
 export const TransportPanel = () => {
   const { isPlaying, isLoop, currentTime, duration, play, stop, toggleLoop, setCurrentTime } = useStudioSessionStore();
@@ -45,9 +46,12 @@ export const TransportPanel = () => {
   }, [isPlaying, duration, isLoop]);
 
   return (
-    <div className="flex items-center justify-center gap-4 bg-slate-900 p-2 border-b border-slate-700">
-      <span className="text-xl font-mono text-primary w-20 text-right">{formatTime(currentTime)}</span>
-      <div className="flex gap-2">
+    <div className="flex items-center justify-between bg-slate-900 p-2 border-b border-slate-700 px-4">
+      <div className="w-1/3">
+          <span className="text-xl font-mono text-primary">{formatTime(currentTime)}</span>
+      </div>
+      
+      <div className="flex gap-2 justify-center w-1/3">
         <Button variant="secondary" onClick={handleStop}>◼</Button>
         <Button variant="primary" onClick={handleTogglePlay}>
           {isPlaying ? '⏸' : '▶'}
@@ -56,7 +60,11 @@ export const TransportPanel = () => {
           🔁
         </Button>
       </div>
-      <span className="text-xl font-mono text-gray-500 w-20">{formatTime(duration)}</span>
+      
+      <div className="flex w-1/3 justify-end items-center gap-4">
+        <span className="text-xl font-mono text-gray-500">{formatTime(duration)}</span>
+        <ExportSession />
+      </div>
     </div>
   );
 };
