@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from src.infrastructure.db.uow import UnitOfWork
 from src.core.security import hash_password, verify_password
 from src.core.exceptions import BusinessRuleError, NotFoundError
@@ -7,11 +7,11 @@ from src.modules.users.repositories import UserRepository
 from src.modules.rbac.repositories import RoleRepository
 from src.modules.auth.repositories import AuthRepository
 from src.modules.users.schemas import UserCreateRequest, ProfileUpdateRequest, ChangePasswordRequest
+from src.modules.billing.models import UserQuotaCurrent
 
 async def register_user(data: UserCreateRequest) -> None:
     async with UnitOfWork() as uow:
         user_repo = UserRepository(uow.session)
-        
         email_str = str(data.email)
         
         if await user_repo.get_by_email(email_str):
@@ -31,6 +31,18 @@ async def register_user(data: UserCreateRequest) -> None:
             is_email_verified=False
         )
         user_repo.add(new_user)
+        await uow.session.flush()
+
+        # временная инициализация бесконечной квоты (-1 ТБ использовано, срок 100 лет)
+        infinite_quota = UserQuotaCurrent(
+            user_id=new_user.id,
+            period_start=datetime.utcnow(),
+            period_end=datetime.utcnow() + timedelta(days=36500),
+            storage_used_bytes=-1000000000000,
+            duration_used_sec=-10000000.0
+        )
+        uow.session.add(infinite_quota)
+        
         await uow.commit()
 
 async def update_user_profile(user_id: str, data: ProfileUpdateRequest) -> None:
