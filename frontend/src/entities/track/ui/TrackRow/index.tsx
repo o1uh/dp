@@ -2,6 +2,7 @@ import React from 'react';
 import { Track } from '../../api';
 import { Button } from '@/shared/ui/Button';
 import { useAudioQueueStore } from '@/entities/audio_queue/model/store';
+import Link from 'next/link';
 
 interface TrackRowProps {
   track: Track;
@@ -25,19 +26,24 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
           {track.genre && <span className="text-xs px-2 py-1 bg-slate-900 rounded">{track.genre}</span>}
         </div>
       </div>
-      <div className="mt-4 flex gap-2 flex-wrap">
-        <Button variant="primary" className="flex-1 text-xs py-1" onClick={() => setPlaylist([track], 0)}>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button variant="primary" className="w-full text-xs py-1" onClick={() => setPlaylist([track], 0)}>
           ▶ Play
         </Button>
-        <Button variant="secondary" className="flex-1 text-xs py-1" onClick={() => onDownload(track.id)}>
+        <Link href={`/studio/${track.id}`} className="w-full">
+          <Button variant="secondary" className="w-full text-xs py-1">
+            В студию
+          </Button>
+        </Link>
+        <Button variant="secondary" className="w-full text-xs py-1" onClick={() => onDownload(track.id)}>
           Скачать
         </Button>
         {onEdit && (
-          <Button variant="primary" className="flex-1 text-xs py-1" onClick={() => onEdit(track)}>
-            Изменить
+          <Button variant="primary" className="w-full text-xs py-1" onClick={() => onEdit(track)}>
+            Метаданные
           </Button>
         )}
-        <Button variant="danger" className="flex-1 text-xs py-1" onClick={() => onDelete(track.id)}>
+        <Button variant="danger" className="w-full text-xs py-1 col-span-2" onClick={() => onDelete(track.id)}>
           Удалить
         </Button>
       </div>

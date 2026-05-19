@@ -52,5 +52,6 @@ async def download_stem(stem_id: str, current_user: User = Depends(get_current_u
         user_stem.downloads_count += 1
         await uow.commit()
 
-        url = await generate_get_url("audio-platform-uploads", physical_stem.s3_key_flac)
+        url = await generate_get_url("audio-platform-uploads", physical_stem.s3_key_mp3)
+        # url = await generate_get_url("audio-platform-uploads", physical_stem.s3_key_flac)
         return {"download_url": url}

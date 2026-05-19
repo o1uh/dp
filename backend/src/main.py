@@ -30,6 +30,9 @@ from src.modules.library.routers.stems import router as stems_router
 
 from src.modules.catalog.routers.search import router as catalog_router
 
+from src.modules.studio.routers.sessions import router as studio_sessions_router
+from src.modules.studio.routers.exports import router as studio_exports_router
+
 app = FastAPI(title="Audio Platform API")
 
 @app.on_event("startup")
@@ -94,3 +97,7 @@ app.include_router(notif_ws_router)
 app.include_router(tracks_router, prefix="/api")
 app.include_router(stems_router, prefix="/api")
 app.include_router(catalog_router, prefix="/api")
+
+# Studio
+app.include_router(studio_sessions_router, prefix="/api")
+app.include_router(studio_exports_router, prefix="/api")
