@@ -14,6 +14,7 @@ import { getAudioContext } from '@/shared/lib/web-audio/context';
 
 export const StudioView = ({ sessionId }: { sessionId: string }) => {
   const { initSession, projectName, setTracks, setTrackBuffer } = useStudioSessionStore();
+  const stopSession = useStudioSessionStore(state => state.stop);
   const pauseGlobalPlayer = useAudioQueueStore(state => state.pause);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -42,11 +43,7 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
             
             if (url) {
               const response = await fetch(url);
-              
-              if (!response.ok) {
-                throw new Error(`S3 Error: ${response.status}`);
-              }
-              
+              if (!response.ok) throw new Error(`S3 Error: ${response.status}`);
               const arrayBuffer = await response.arrayBuffer();
               
               try {
@@ -55,16 +52,16 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
                   setTrackBuffer(track.id, audioBuffer);
                 }
               } catch (decodeError) {
-                console.error(`Decoding failed for ${track.name || track.id}. Likely FLAC/format issue.`);
+                console.error(`Декодирование не удалось для ${track.name || track.id}`);
               }
             }
           } catch (e) {
-            console.error(`Failed to load track ${track.name || track.id}`, e);
+            console.error(`Ошибка загрузки дорожки ${track.name || track.id}`, e);
           }
         }));
 
       } catch (e) {
-        console.error('Failed to load session data:', e);
+        console.error('Ошибка сессии:', e);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -72,31 +69,43 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
 
     loadData();
 
-    return () => { isMounted = false; };
-  }, [sessionId, initSession, pauseGlobalPlayer, setTracks, setTrackBuffer]);
+    return () => { 
+      isMounted = false;
+      stopSession();
+    };
+  }, [sessionId, initSession, pauseGlobalPlayer, setTracks, setTrackBuffer, stopSession]);
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <span className="text-primary animate-pulse font-semibold">Загрузка данных сессии...</span>
+      <div className="flex h-screen items-center justify-center bg-[#090D16]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+          <span className="text-xs font-mono tracking-wider text-gray-500 uppercase">ЗАГРУЗКА DAW ОКРУЖЕНИЯ...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
-      <header className="h-12 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-4">
-        <h1 className="text-white font-bold">{projectName}</h1>
+    <div className="flex flex-col h-screen w-full bg-background overflow-hidden text-white font-sans antialiased">
+      {/* Шапка DAW */}
+      <header className="h-11 bg-background-surface border-b border-slate-900 flex items-center justify-between px-4 select-none">
+        <div className="flex items-center gap-3">
+          <div className="h-2 w-2 rounded-full bg-accent-green" />
+          <h1 className="text-xs font-bold tracking-wider text-gray-300 uppercase">{projectName}</h1>
+        </div>
         <Link 
           href="/library" 
-          className="text-sm font-semibold text-gray-400 hover:text-white px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded transition"
+          className="text-[10px] font-mono font-bold tracking-wider text-gray-500 hover:text-white px-2.5 py-1 bg-slate-900 border border-white/[0.04] rounded transition"
         >
-          ✕ Выйти
+          ЗАКРЫТЬ СТУДИЮ [ESC]
         </Link>
       </header>
       
+      {/* Главная панель транспорта (Время, Play, Loop, Export) */}
       <TransportPanel />
       
+      {/* Рабочая область DAW (Микшер слева, Таймлайн со скроллом справа) */}
       <div className="flex flex-1 overflow-hidden">
         <MixerPanel />
         <AudioWorkspace />

@@ -69,15 +69,15 @@ export const TrackGrid = () => {
   if (isError) return <div className="mt-6 text-red-500">Ошибка загрузки библиотеки</div>;
   if (!data?.items || data.items.length === 0) {
     return (
-      <div className="w-full h-48 border-2 border-dashed border-slate-700 rounded-lg flex items-center justify-center bg-slate-800/30 mt-6">
-        <p className="text-gray-500">Библиотека пуста. Загрузите файлы выше.</p>
+      <div className="w-full h-48 border border-dashed border-slate-800 rounded-lg flex items-center justify-center bg-slate-900/10 mt-6">
+        <p className="text-gray-500 text-xs">Библиотека пуста. Загрузите файлы выше.</p>
       </div>
     );
   }
 
   return (
     <div className="mt-6">
-      <h2 className="text-xl font-semibold mb-4 text-white">Мои треки</h2>
+      <h2 className="text-sm font-bold uppercase tracking-wider mb-4 text-gray-400">Мои треки</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {data.items.map((track) => (
           <TrackRow 
@@ -92,23 +92,29 @@ export const TrackGrid = () => {
 
       {editingTrack && (
         <Modal onClose={() => setEditingTrack(null)}>
-          <form onSubmit={handleEditSubmit} className="bg-slate-900 p-6 rounded border border-slate-700 flex flex-col gap-4 w-96">
-            <h3 className="text-lg font-bold text-white">Редактировать трек</h3>
+          <form 
+            onSubmit={handleEditSubmit} 
+            className="bg-background-surface border border-white/[0.06] p-6 rounded-xl flex flex-col gap-4 w-full"
+          >
+            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-200">Редактировать трек</h3>
+            
             <Input 
               label="Название" 
               value={editForm.title} 
               onChange={(e) => setEditForm({...editForm, title: e.target.value})} 
               required 
             />
+            
             <Input 
               label="Жанр" 
               value={editForm.genre} 
               onChange={(e) => setEditForm({...editForm, genre: e.target.value})} 
             />
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-gray-300">Видимость</label>
+            
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-mono font-black text-gray-500 uppercase tracking-widest">Видимость</label>
               <select 
-                className="px-3 py-2 bg-slate-800 text-white border border-slate-600 rounded focus:border-primary focus:outline-none"
+                className="w-full px-3.5 py-3 bg-[#05070B] text-gray-100 text-xs border border-white/[0.06] rounded-lg outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                 value={editForm.visibility}
                 onChange={(e) => setEditForm({...editForm, visibility: e.target.value})}
               >
@@ -117,6 +123,7 @@ export const TrackGrid = () => {
                 <option value="unlisted">Unlisted</option>
               </select>
             </div>
+            
             <div className="flex justify-end gap-2 mt-4">
               <Button variant="secondary" type="button" onClick={() => setEditingTrack(null)}>Отмена</Button>
               <Button variant="primary" type="submit" isLoading={updateMutation.isPending}>Сохранить</Button>

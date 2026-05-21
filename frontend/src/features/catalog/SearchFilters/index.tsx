@@ -27,8 +27,7 @@ export const SearchFilters = () => {
   };
 
   return (
-    <form onSubmit={handleSearch} className="flex flex-col gap-4 bg-slate-800 p-4 rounded-lg border border-slate-700">
-      <h3 className="font-semibold text-white">Фильтры</h3>
+    <form onSubmit={handleSearch} className="flex flex-col gap-4">
       <Input 
         placeholder="Поиск по названию..." 
         value={query} 
@@ -39,7 +38,9 @@ export const SearchFilters = () => {
         value={genre} 
         onChange={(e) => setGenre(e.target.value)} 
       />
-      <Button type="submit" variant="primary">Найти</Button>
+      <Button type="submit" variant="primary" className="w-full">
+        Найти
+      </Button>
     </form>
   );
 };

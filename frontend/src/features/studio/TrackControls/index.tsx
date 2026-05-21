@@ -14,28 +14,34 @@ export const TrackControls: React.FC<TrackControlsProps> = ({ trackId, name }) =
   if (!track) return null;
 
   return (
-    <div className="flex flex-col gap-2 p-2 bg-slate-800 border border-slate-700 rounded w-full">
-      <span className="text-sm font-bold text-gray-200 truncate">{name}</span>
+    <div className="bg-slate-950/60 border border-white/[0.02] p-3 rounded-lg flex flex-col justify-between h-[150px]">
+      {/* Имя канала и номер */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-gray-300 truncate tracking-wide">{name}</span>
+        <span className="text-[9px] font-mono text-gray-600">DB_FADER</span>
+      </div>
       
-      <div className="flex gap-2">
+      {/* Кнопки Mute / Solo */}
+      <div className="flex gap-1">
         <button 
-          className={`flex-1 text-xs py-1.5 font-bold rounded transition ${track.is_muted ? 'bg-red-600 text-white' : 'bg-slate-700 text-gray-400 hover:bg-slate-600'}`}
+          className={`flex-1 text-[10px] py-1 font-mono font-bold rounded transition-all duration-150 ${track.is_muted ? 'bg-accent-red text-white shadow-md shadow-accent-red/20' : 'bg-slate-900 text-gray-500 hover:text-gray-300 border border-white/[0.04]'}`}
           onClick={() => updateParams(trackId, { is_muted: !track.is_muted })}
         >
           MUTE
         </button>
         <button 
-          className={`flex-1 text-xs py-1.5 font-bold rounded transition ${track.is_solo ? 'bg-yellow-600 text-white' : 'bg-slate-700 text-gray-400 hover:bg-slate-600'}`}
+          className={`flex-1 text-[10px] py-1 font-mono font-bold rounded transition-all duration-150 ${track.is_solo ? 'bg-accent-yellow text-slate-950 shadow-md shadow-accent-yellow/20' : 'bg-slate-900 text-gray-500 hover:text-gray-300 border border-white/[0.04]'}`}
           onClick={() => updateParams(trackId, { is_solo: !track.is_solo })}
         >
           SOLO
         </button>
       </div>
 
-      <div className="flex flex-col gap-1 mt-1">
-        <div className="flex justify-between text-[10px] text-gray-400">
-          <span>Громкость</span>
-          <span>{Math.round(track.volume * 100)}%</span>
+      {/* Фейдер громкости */}
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between text-[9px] font-mono text-gray-500">
+          <span>GAIN</span>
+          <span>{(track.volume * 100).toFixed(0)}%</span>
         </div>
         <Slider 
           min={0} max={2} step={0.01} 
@@ -44,10 +50,11 @@ export const TrackControls: React.FC<TrackControlsProps> = ({ trackId, name }) =
         />
       </div>
 
-      <div className="flex flex-col gap-1 mt-1">
-        <div className="flex justify-between text-[10px] text-gray-400">
-          <span>Панорама (L/R)</span>
-          <span>{Math.round(track.pan * 100)}</span>
+      {/* Панорамирование */}
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between text-[9px] font-mono text-gray-500">
+          <span>PAN</span>
+          <span>{track.pan === 0 ? 'C' : track.pan > 0 ? `R${(track.pan * 10).toFixed(0)}` : `L${Math.abs(track.pan * 10).toFixed(0)}`}</span>
         </div>
         <Slider 
           min={-1} max={1} step={0.01} 

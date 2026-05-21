@@ -35,6 +35,8 @@ interface StudioSessionState {
   isLoop: boolean;
   currentTime: number;
   duration: number;
+  seekVersion: number;
+  autoScrollEnabled: boolean;
   
   initSession: (id: string, name: string) => void;
   setTracks: (tracks: StudioTrack[]) => void;
@@ -44,6 +46,8 @@ interface StudioSessionState {
   play: () => void;
   stop: () => void;
   setCurrentTime: (time: number) => void;
+  seekTo: (time: number) => void;
+  toggleAutoScroll: () => void;
 }
 
 export const useStudioSessionStore = create<StudioSessionState>((set, get) => ({
@@ -55,8 +59,10 @@ export const useStudioSessionStore = create<StudioSessionState>((set, get) => ({
   isLoop: false,
   currentTime: 0,
   duration: 0,
+  seekVersion: 0,
+  autoScrollEnabled: true,
 
-  initSession: (id, name) => set({ sessionId: id, projectName: name, tracks: [], currentTime: 0, isPlaying: false }),
+  initSession: (id, name) => set({ sessionId: id, projectName: name, tracks: [], currentTime: 0, isPlaying: false, seekVersion: 0, autoScrollEnabled: true }),
   setTracks: (tracks) => set({ tracks }),
   
   toggleLoop: () => set((state) => ({ isLoop: !state.isLoop })),
@@ -142,5 +148,21 @@ export const useStudioSessionStore = create<StudioSessionState>((set, get) => ({
     set({ isPlaying: false, tracks: clearedTracks });
   },
   
-  setCurrentTime: (time) => set({ currentTime: time })
+  setCurrentTime: (time) => set({ currentTime: time }),
+
+  seekTo: (time) => {
+    const { isPlaying, play, stop, setCurrentTime, duration } = get();
+    const targetTime = Math.max(0, Math.min(time, duration));
+    if (isPlaying) {
+      stop();
+      setCurrentTime(targetTime);
+      set((state) => ({ seekVersion: state.seekVersion + 1 }));
+      play();
+    } else {
+      setCurrentTime(targetTime);
+      set((state) => ({ seekVersion: state.seekVersion + 1 }));
+    }
+  },
+
+  toggleAutoScroll: () => set((state) => ({ autoScrollEnabled: !state.autoScrollEnabled }))
 }));
