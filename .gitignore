@@ -36,6 +36,10 @@ backend/weights/*
 .DS_Store
 Thumbs.db
 
+# Machine Learning Training
+ml_training/dataset/
+ml_training/demucs/
+
 # Other
 c.py
 c.sh
