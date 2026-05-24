@@ -46,7 +46,8 @@ async def test_deduplication_logic(db_session, setup_auth_user):
         "file_hash": file_hash,
         "mime_type": "audio/mpeg",
         "file_size_bytes": 1024,
-        "duration_sec": 60.0
+        "duration_sec": 60.0,
+        "original_filename": "test.mp3" 
     }
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

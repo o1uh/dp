@@ -6,11 +6,13 @@ from src.main import app
 @pytest.mark.asyncio
 async def test_presigned_url_generation(db_session, setup_auth_user):
     token, _ = setup_auth_user
+    
     payload = {
         "file_hash": "new_unique_hash_456",
         "mime_type": "audio/wav",
         "file_size_bytes": 2048,
-        "duration_sec": 120.0
+        "duration_sec": 120.0,
+        "original_filename": "test.wav"
     }
 
     with patch("src.infrastructure.s3.presigned.get_s3_session") as mock_session:

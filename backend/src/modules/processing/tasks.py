@@ -96,7 +96,9 @@ def render_session(self, task_id: str, track_configs: list, file_id: str):
     try:
         inputs = []
         for idx, config in enumerate(track_configs):
-            local_path = temp_dir / f"track_{idx}.audio"
+            ext = Path(config["s3_key"]).suffix or ".audio"
+            local_path = temp_dir / f"track_{idx}{ext}"
+            
             download_file(BUCKET_NAME, config["s3_key"], local_path)
             
             stream = ffmpeg.input(str(local_path))

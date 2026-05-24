@@ -19,10 +19,15 @@ def load_audio(file_path: Path, sample_rate: int = 44100) -> torch.Tensor:
 def save_audio(tensor: torch.Tensor, output_path: Path, sample_rate: int = 44100, format: str = 'flac'):
     audio_array = tensor.cpu().numpy().T
     
+    output_params = {}
+    if format == 'mp3':
+        output_params['format'] = 'mp3'
+        output_params['audio_bitrate'] = '320k'
+    
     try:
         process = (
             ffmpeg.input('pipe:', format='f32le', acodec='pcm_f32le', ac=2, ar=sample_rate)
-            .output(str(output_path), format=format, audio_bitrate='320k' if format == 'mp3' else None)
+            .output(str(output_path), **output_params)
             .overwrite_output()
             .run_async(pipe_stdin=True, pipe_stderr=True)
         )

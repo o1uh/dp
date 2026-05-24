@@ -26,6 +26,7 @@ export const PlaybackControls = () => {
       {isPlaying ? (
         <button
           onClick={pause}
+          aria-label="Пауза"
           className="w-11 h-11 rounded-lg bg-primary hover:bg-primary-hover text-white transition flex items-center justify-center shadow-glow-primary active:scale-95"
         >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -35,6 +36,7 @@ export const PlaybackControls = () => {
       ) : (
         <button
           onClick={play}
+          aria-label="Воспроизвести"
           className="w-11 h-11 rounded-lg bg-primary hover:bg-primary-hover text-white transition flex items-center justify-center shadow-glow-primary active:scale-95"
         >
           <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">

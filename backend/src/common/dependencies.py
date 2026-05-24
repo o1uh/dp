@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import Depends, Request
+from fastapi import Depends, Request, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.db.session import get_session
 from src.core.security import decode_token
@@ -14,22 +14,34 @@ async def get_current_user(
 ) -> User:
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise AccessDeniedError("Missing or invalid authorization header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authorization header"
+        )
     
     token = auth_header.split(" ")[1]
     try:
         payload = decode_token(token)
     except ValueError as e:
-        raise AccessDeniedError(str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
+        )
     
     user_id = payload.get("sub")
     if not user_id:
-        raise AccessDeniedError("Invalid token payload")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload"
+        )
         
     repo = UserRepository(session)
     user = await repo.get_by_id(user_id)
     if not user or not user.is_active or user.deleted_at:
-        raise AccessDeniedError("User not found or inactive")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive"
+        )
         
     return user
 

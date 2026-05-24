@@ -23,18 +23,19 @@ test.describe('Global Audio Player Persistence', () => {
       })
     );
     await page.route('**/api/tracks/track-1/download', route => 
-      // Возвращаем фейковый URL, чтобы избежать мгновенного завершения трека (onEnded)
       route.fulfill({ 
         json: { download_url: 'http://localhost:3000/dummy-audio.mp3' } 
       })
     );
 
-    // Перехват запроса к фейковому аудио, чтобы предотвратить сетевые ошибки в логах
     await page.route('**/dummy-audio.mp3', route => {
       route.fulfill({ body: 'fake audio content', contentType: 'audio/mpeg' });
     });
 
-    // Установка состояния авторизации 
+    await page.route('**/api/notifications', route => 
+      route.fulfill({ json: [] })
+    );
+
     await page.goto('http://localhost:3000/login');
     await page.evaluate(() => {
       localStorage.setItem('auth-storage', JSON.stringify({ 
@@ -47,29 +48,24 @@ test.describe('Global Audio Player Persistence', () => {
       }));
     });
 
-    // Переход в библиотеку и запуск трека
     await page.goto('http://localhost:3000/library');
     
-    // Ожидание рендера названия трека
     await page.waitForSelector('text=Navigation Test Track');
-    await page.click('text=▶ Play');
+    
+    await page.click('text=Слушать');
 
-    // Проверка появления MiniPlayer
     const miniPlayer = page.locator('div.fixed.bottom-0');
     await expect(miniPlayer).toBeVisible();
     await expect(miniPlayer.locator('text=Navigation Test Track')).toBeVisible();
 
-    // Ожидание старта воспроизведения (кнопка паузы "||")
-    const pauseButton = miniPlayer.locator('button:has-text("||")');
+    const pauseButton = miniPlayer.locator('button[aria-label="Пауза"]');
     await expect(pauseButton).toBeVisible();
 
-    // Навигация в каталог
     await page.click('a[href="/catalog"]');
     await page.waitForURL('**/catalog*');
 
-    // Проверка сохранения состояния плеера после смены маршрута
     await expect(miniPlayer).toBeVisible();
     await expect(miniPlayer.locator('text=Navigation Test Track')).toBeVisible();
-    await expect(pauseButton).toBeVisible(); // Если кнопка паузы активна, значит isPlaying === true
+    await expect(pauseButton).toBeVisible(); 
   });
 });
