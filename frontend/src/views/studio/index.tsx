@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; 
+import { useUserStore } from '@/entities/user/model/store'; 
 import { useStudioSessionStore } from '@/entities/studio_session/model/store';
 import { TransportPanel } from '@/features/studio/TransportPanel';
 import { MixerPanel } from '@/widgets/studio/MixerPanel';
@@ -18,7 +20,18 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
   const pauseGlobalPlayer = useAudioQueueStore(state => state.pause);
   const [isLoading, setIsLoading] = useState(true);
 
+  const { isAuth, _hasHydrated, logout } = useUserStore();
+  const router = useRouter();
+
   useEffect(() => {
+    if (_hasHydrated && !isAuth) {
+      router.replace('/login');
+    }
+  }, [_hasHydrated, isAuth, router]);
+
+  useEffect(() => {
+    if (!isAuth) return;
+
     let isMounted = true;
     pauseGlobalPlayer();
 
@@ -60,8 +73,11 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
           }
         }));
 
-      } catch (e) {
+      } catch (e: any) {
         console.error('Ошибка сессии:', e);
+        if (e.response?.status === 401 || e.response?.status === 403) {
+          router.replace('/library');
+        }
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -73,7 +89,15 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
       isMounted = false;
       stopSession();
     };
-  }, [sessionId, initSession, pauseGlobalPlayer, setTracks, setTrackBuffer, stopSession]);
+  }, [sessionId, initSession, pauseGlobalPlayer, setTracks, setTrackBuffer, stopSession, isAuth, router]);
+
+  if (!_hasHydrated || !isAuth) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#090D16]">
+        <span className="text-xs font-mono tracking-wider text-gray-500 uppercase">ПРОВЕРКА АВТОРИЗАЦИИ...</span>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -102,10 +126,9 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
         </Link>
       </header>
       
-      {/* Главная панель транспорта (Время, Play, Loop, Export) */}
+      {/* Главная панель транспорта */}
       <TransportPanel />
       
-      {/* Рабочая область DAW (Микшер слева, Таймлайн со скроллом справа) */}
       <div className="flex flex-1 overflow-hidden">
         <MixerPanel />
         <AudioWorkspace />

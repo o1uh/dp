@@ -7,6 +7,7 @@ class FileUploadRequest(BaseModel):
     mime_type: str
     file_size_bytes: int
     duration_sec: float
+    original_filename: str
 
 class FileUploadResponse(BaseModel):
     is_duplicate: bool

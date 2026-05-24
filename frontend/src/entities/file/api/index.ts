@@ -5,6 +5,7 @@ interface UploadInitData {
   mime_type: string;
   file_size_bytes: number;
   duration_sec: number;
+  original_filename: string;
 }
 
 interface UploadInitResponse {

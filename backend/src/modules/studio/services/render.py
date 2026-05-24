@@ -16,6 +16,9 @@ async def initiate_render(user_id: str, session_id: str) -> str:
         if not session:
             raise NotFoundError("Session not found")
 
+        if str(session.user_id) != user_id:
+            raise AccessDeniedError("Access denied to this session")
+
         tracks = await studio_repo.get_session_tracks(session_id)
         if not tracks:
             raise BusinessRuleError("Cannot render empty session")
@@ -62,6 +65,8 @@ async def initiate_render(user_id: str, session_id: str) -> str:
             processing_status=FileProcessingStatus.processing
         )
         uow.session.add(mix_file)
+        
+        await uow.session.flush() 
         
         session.exported_file_id = mix_file_id
 

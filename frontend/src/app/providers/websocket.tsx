@@ -8,13 +8,20 @@ import { useQueryClient } from '@tanstack/react-query';
 
 export default function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const token = useUserStore((state) => state.accessToken);
+  const isAuth = useUserStore((state) => state.isAuth);
   const addNotification = useNotificationStore((state) => state.addNotification);
   const resetFileStore = useFileStore((state) => state.reset);
   const queryClient = useQueryClient();
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !isAuth) {
+      if (ws.current) {
+        ws.current.close();
+        ws.current = null;
+      }
+      return;
+    }
 
     let isMounted = true;
     let timeoutId: NodeJS.Timeout;
@@ -24,7 +31,7 @@ export default function WebSocketProvider({ children }: { children: React.ReactN
       const url = `${process.env.NEXT_PUBLIC_WS_URL}/notifications?token=${token}`;
       ws.current = new WebSocket(url);
 
-       ws.current.onmessage = (event) => {
+      ws.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           
@@ -50,7 +57,7 @@ export default function WebSocketProvider({ children }: { children: React.ReactN
       };
 
       ws.current.onclose = () => {
-        if (isMounted) {
+        if (isMounted && isAuth) {
             timeoutId = setTimeout(connect, 5000);
         }
       };
@@ -64,9 +71,10 @@ export default function WebSocketProvider({ children }: { children: React.ReactN
       if (ws.current) {
           ws.current.onclose = null;
           ws.current.close();
+          ws.current = null;
       }
     };
-  }, [token, addNotification, queryClient, resetFileStore]);
+  }, [token, isAuth, addNotification, queryClient, resetFileStore]);
 
   return <>{children}</>;
 }

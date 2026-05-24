@@ -88,6 +88,7 @@ services:
       - S3_PUBLIC_ENDPOINT=${S3_PUBLIC_ENDPOINT}
       - S3_ACCESS_KEY=${S3_ACCESS_KEY}
       - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - TORCH_HOME=/app/weights
     depends_on:
       redis:
         condition: service_healthy
@@ -117,9 +118,9 @@ services:
       - S3_SECRET_KEY=${S3_SECRET_KEY}
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc config host add myminio http://minio:9000 ${S3_ACCESS_KEY} ${S3_SECRET_KEY};
+      /usr/bin/mc config host add myminio http://minio:9000 $${S3_ACCESS_KEY} $${S3_SECRET_KEY};
       /usr/bin/mc mb myminio/audio-platform-uploads --ignore-existing;
-      /usr/bin/mc anonymous set download myminio/audio-platform-uploads;
+      /usr/bin/mc anonymous set private myminio/audio-platform-uploads;
       "
 
 volumes:

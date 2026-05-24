@@ -49,7 +49,7 @@ async def init_upload(data: FileUploadRequest) -> FileUploadResponse:
             )
 
         #новый файл
-        s3_key = f"originals/{uuid.uuid4()}_{data.file_hash}.audio"
+        s3_key = f"originals/{uuid.uuid4()}/{data.original_filename}"
         new_file = File(
             file_hash=data.file_hash,
             s3_key_original=s3_key,

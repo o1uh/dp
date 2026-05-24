@@ -2,7 +2,8 @@ from src.infrastructure.db.uow import UnitOfWork
 from src.modules.processing.models import ProcessingTask
 from src.core.worker.celery_app import celery_app
 from src.modules.storage.repositories import FileRepository
-from src.core.exceptions import NotFoundError
+from src.core.exceptions import NotFoundError, BusinessRuleError
+from src.common.enums import FileProcessingStatus
 
 async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
     async with UnitOfWork() as uow:
@@ -11,6 +12,9 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
         
         if not file_obj:
             raise NotFoundError("File not found")
+
+        if file_obj.processing_status == FileProcessingStatus.awaiting_upload:
+            raise BusinessRuleError("File upload is not confirmed yet")
 
         task = ProcessingTask(
             user_id=user_id,

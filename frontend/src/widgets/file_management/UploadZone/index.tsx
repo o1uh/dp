@@ -57,7 +57,8 @@ export const UploadZone = () => {
             file_hash: hash,
             mime_type: file.type,
             file_size_bytes: file.size,
-            duration_sec: duration
+            duration_sec: duration,
+            original_filename: file.name
           });
 
           if (initRes.is_duplicate) {
