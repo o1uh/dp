@@ -38,6 +38,25 @@ export default function WebSocketProvider({ children }: { children: React.ReactN
           if (data.event === 'TrackReady') {
             if (data.status === 'processing') return;
 
+            if (data.task_type === 'render' && data.status === 'completed' && data.download_url) {
+              addNotification({
+                event: data.event,
+                message: 'Экспорт завершен. Скачивание архива...',
+                status: 'completed',
+                task_id: data.task_id
+              });
+
+              const link = document.createElement('a');
+              link.href = data.download_url;
+              link.setAttribute('download', 'stems.zip');
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+
+              resetFileStore();
+              return;
+            }
+
             addNotification({
               event: data.event,
               message: data.status === 'completed' ? 'Обработка файла завершена' : 'Ошибка обработки',

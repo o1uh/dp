@@ -11,6 +11,13 @@ export const ExportSession = () => {
   const [isExporting, setIsExporting] = useState(false);
   const addNotification = useNotificationStore(state => state.addNotification);
 
+  const anySolo = tracks.some(t => t.is_solo);
+  const hasActiveTracks = tracks.some(t => {
+    if (t.is_muted) return false;
+    if (anySolo && !t.is_solo) return false;
+    return true;
+  });
+
   const handleExport = async () => {
     if (!sessionId) return;
     setIsExporting(true);
@@ -44,11 +51,12 @@ export const ExportSession = () => {
         task_id: res.task_id
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Export failed:', error);
+      const errMsg = error.response?.data?.message || 'Ошибка инициации сведения';
       addNotification({
         event: 'ExportFailed',
-        message: 'Ошибка инициации сведения',
+        message: errMsg,
         status: 'error'
       });
     } finally {
@@ -61,7 +69,7 @@ export const ExportSession = () => {
       variant="primary" 
       onClick={handleExport} 
       isLoading={isExporting}
-      disabled={tracks.length === 0}
+      disabled={tracks.length === 0 || !hasActiveTracks}
     >
       Экспорт (Render)
     </Button>

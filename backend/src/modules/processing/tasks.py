@@ -4,6 +4,7 @@ import tempfile
 import requests
 import logging
 import ffmpeg
+import zipfile
 from pathlib import Path
 from src.core.worker.celery_app import celery_app
 from src.ml_engine.s3_sync import download_file, upload_file
@@ -83,7 +84,7 @@ def render_session(self, task_id: str, track_configs: list, file_id: str):
     })
 
     temp_dir = Path(tempfile.mkdtemp())
-    output_file = temp_dir / "mix.flac"
+    output_file = temp_dir / "stems.zip"
     
     payload = {
         "task_id": task_id,
@@ -94,56 +95,27 @@ def render_session(self, task_id: str, track_configs: list, file_id: str):
     }
 
     try:
-        inputs = []
-        for idx, config in enumerate(track_configs):
-            ext = Path(config["s3_key"]).suffix or ".audio"
-            local_path = temp_dir / f"track_{idx}{ext}"
-            
-            download_file(BUCKET_NAME, config["s3_key"], local_path)
-            
-            stream = ffmpeg.input(str(local_path))
-            
-            if config.get("trim_start_ms", 0) > 0 or config.get("trim_end_ms"):
-                start_s = config.get("trim_start_ms", 0) / 1000.0
-                end_kwargs = {}
-                if config.get("trim_end_ms"):
-                    end_kwargs["end"] = config["trim_end_ms"] / 1000.0
-                stream = stream.filter('atrim', start=start_s, **end_kwargs).filter('asetpts', 'PTS-STARTPTS')
+        with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for idx, config in enumerate(track_configs):
+                ext = Path(config["s3_key"]).suffix or ".audio"
+                local_path = temp_dir / f"track_{idx}{ext}"
+                
+                download_file(BUCKET_NAME, config["s3_key"], local_path)
+                
+                stem_name = Path(config["s3_key"]).stem or f"track_{idx}"
+                zipf.write(local_path, arcname=f"{stem_name}{ext}")
 
-            delay_ms = config.get("start_offset_ms", 0)
-            volume = config.get("volume", 1.0)
-            
-            stream = stream.filter('adelay', f'{delay_ms}|{delay_ms}').filter('volume', volume=volume)
-            inputs.append(stream)
-
-        if not inputs:
-            raise ValueError("No tracks to mix")
-
-        merged = ffmpeg.filter(inputs, 'amix', inputs=len(inputs), duration='longest')
-        
-        (
-            ffmpeg
-            .output(merged, str(output_file), format='flac')
-            .overwrite_output()
-            .run(capture_stdout=True, capture_stderr=True)
-        )
-
-        s3_key_flac = f"renders/{file_id}/mix.flac"
-        upload_file(BUCKET_NAME, output_file, s3_key_flac, "audio/flac")
+        s3_key_zip = f"renders/{file_id}/stems.zip"
+        upload_file(BUCKET_NAME, output_file, s3_key_zip, "application/zip")
         
         payload["stems"].append({
-            "stem_class": "mix",
-            "s3_key_flac": s3_key_flac,
-            "s3_key_mp3": s3_key_flac,
+            "stem_class": "stems_archive",
+            "s3_key_flac": s3_key_zip,
+            "s3_key_mp3": s3_key_zip,
             "file_size_bytes": output_file.stat().st_size,
-            "model_version": "ffmpeg_mix"
+            "model_version": "zip_package"
         })
 
-    except ffmpeg.Error as e:
-        payload["status"] = "failed"
-        payload["error_message"] = f"FFmpeg error: {e.stderr.decode()}"
-        logging.error(f"Render task {task_id} failed: {payload['error_message']}")
-        raise
     except Exception as e:
         payload["status"] = "failed"
         payload["error_message"] = str(e)

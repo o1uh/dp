@@ -23,12 +23,16 @@ const Toast = ({ notif, onRemove }: { notif: any; onRemove: (id: string) => void
     return () => clearTimeout(timer);
   }, [notif.id, onRemove]);
 
-  const bgColor = notif.status === 'completed' ? 'bg-green-600' : 'bg-red-600';
+  const getBgColor = () => {
+    if (notif.status === 'completed') return 'bg-accent-green text-white';
+    if (notif.status === 'processing') return 'bg-accent-yellow text-slate-950 font-bold';
+    return 'bg-accent-red text-white';
+  };
 
   return (
-    <div className={`${bgColor} text-white px-4 py-3 rounded shadow-lg flex justify-between items-center w-64 animate-fade-in-up`}>
-      <span className="text-sm">{notif.message}</span>
-      <button onClick={() => onRemove(notif.id)} className="ml-4 text-white hover:text-gray-200">
+    <div className={`${getBgColor()} px-4 py-3 rounded shadow-lg flex justify-between items-center w-72 animate-fade-in-up border border-white/5`}>
+      <span className="text-xs tracking-wide uppercase font-semibold">{notif.message}</span>
+      <button onClick={() => onRemove(notif.id)} className="ml-4 hover:opacity-70 transition text-sm">
         &times;
       </button>
     </div>

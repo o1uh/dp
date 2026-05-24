@@ -13,6 +13,7 @@ from src.modules.processing.schemas import WebhookPayload
 from src.common.enums import TaskStatus, FileProcessingStatus
 from src.core.config import settings
 from src.core.logger import logger
+from src.infrastructure.s3.presigned import generate_get_url
 
 async def process_webhook(payload: WebhookPayload):
     task_uuid = uuid.UUID(payload.task_id)
@@ -77,6 +78,11 @@ async def process_webhook(payload: WebhookPayload):
             if api_key and api_key.webhook_url:
                 webhook_url = api_key.webhook_url
 
+        download_url = None
+        if task.model_config.get("type") == "render" and payload.status == "completed":
+            s3_key_zip = f"renders/{file_uuid}/stems.zip"
+            download_url = await generate_get_url("audio-platform-uploads", s3_key_zip)
+
         await uow.commit()
 
     if webhook_url:
@@ -93,7 +99,9 @@ async def process_webhook(payload: WebhookPayload):
             "event": "TrackReady",
             "task_id": str(task.id),
             "file_id": str(file_obj.id) if file_obj else None,
-            "status": payload.status
+            "status": payload.status,
+            "task_type": task.model_config.get("type"),
+            "download_url": download_url
         }
     }
     await redis.publish("system_events", json.dumps(event))

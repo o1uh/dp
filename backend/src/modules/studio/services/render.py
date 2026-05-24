@@ -23,9 +23,14 @@ async def initiate_render(user_id: str, session_id: str) -> str:
         if not tracks:
             raise BusinessRuleError("Cannot render empty session")
 
+        any_solo = any(track.is_solo for track in tracks)
+
         track_configs = []
         for track in tracks:
             if track.is_muted:
+                continue
+
+            if any_solo and not track.is_solo:
                 continue
 
             s3_key = None
@@ -66,7 +71,7 @@ async def initiate_render(user_id: str, session_id: str) -> str:
         )
         uow.session.add(mix_file)
         
-        await uow.session.flush() 
+        await uow.session.flush()
         
         session.exported_file_id = mix_file_id
 
