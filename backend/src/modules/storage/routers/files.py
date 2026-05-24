@@ -8,7 +8,7 @@ router = APIRouter(prefix="/files", tags=["Storage"])
 
 @router.post("/upload-init", response_model=FileUploadResponse)
 async def upload_init(data: FileUploadRequest, current_user: User = Depends(get_current_user)):
-    return await init_upload(data)
+    return await init_upload(data, str(current_user.id))
 
 @router.post("/upload-confirm", status_code=status.HTTP_200_OK)
 async def upload_confirm(data: FileConfirmRequest, current_user: User = Depends(get_current_user)):

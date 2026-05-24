@@ -6,4 +6,5 @@ export interface UserProfileResponse {
   bio?: string;
   profile_specialization?: string;
   role_name?: string;
+  storage_used_bytes?: number;
 }

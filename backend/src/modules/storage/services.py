@@ -7,20 +7,49 @@ from src.modules.storage.schemas import FileUploadRequest, FileUploadResponse
 from src.infrastructure.s3.presigned import generate_put_url
 from src.common.enums import FileProcessingStatus
 from src.modules.processing.models import Stem
+from src.modules.library.models import Track, UserStem
 
 BUCKET_NAME = "audio-platform-uploads"
 
-async def init_upload(data: FileUploadRequest) -> FileUploadResponse:
+async def init_upload(data: FileUploadRequest, user_id: str) -> FileUploadResponse:
     async with UnitOfWork() as uow:
         repo = FileRepository(uow.session)
         existing_file = await repo.get_by_hash(data.file_hash)
         
         if existing_file:
-            # если файл уже загружен или обрабатывается
             if existing_file.processing_status in [FileProcessingStatus.uploaded, FileProcessingStatus.processing, FileProcessingStatus.ready]:
                 stems_data = []
                 
                 if existing_file.processing_status == FileProcessingStatus.ready:
+                    stmt_check = select(Track).where(
+                        Track.user_id == uuid.UUID(user_id),
+                        Track.file_id == existing_file.id,
+                        Track.deleted_at.is_(None)
+                    )
+                    existing_track = (await uow.session.execute(stmt_check)).scalar_one_or_none()
+                    
+                    if not existing_track:
+                        track = Track(
+                            user_id=uuid.UUID(user_id),
+                            file_id=existing_file.id,
+                            title=data.original_filename,
+                            original_filename=data.original_filename
+                        )
+                        uow.session.add(track)
+                        await uow.session.flush()
+
+                        stmt_stems = select(Stem).where(Stem.file_id == existing_file.id)
+                        physical_stems = (await uow.session.execute(stmt_stems)).scalars().all()
+
+                        user_stems = [
+                            UserStem(
+                                user_id=uuid.UUID(user_id),
+                                stem_id=ps.id,
+                                track_id=track.id
+                            ) for ps in physical_stems
+                        ]
+                        uow.session.add_all(user_stems)
+
                     stmt = select(Stem).where(Stem.file_id == existing_file.id)
                     result = await uow.session.execute(stmt)
                     stems = result.scalars().all()
@@ -31,6 +60,8 @@ async def init_upload(data: FileUploadRequest) -> FileUploadResponse:
                             "s3_key_mp3": s.s3_key_mp3
                         } for s in stems
                     ]
+
+                await uow.commit()
 
                 return FileUploadResponse(
                     is_duplicate=True,

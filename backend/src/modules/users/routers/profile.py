@@ -5,6 +5,9 @@ from src.modules.users.schemas import UserProfileResponse, ProfileUpdateRequest,
 from src.modules.users.services.profile import update_user_profile, change_user_password, soft_delete_user
 from src.modules.rbac.repositories import RoleRepository
 from src.infrastructure.db.session import async_session_maker
+from src.modules.library.models import Track
+from src.modules.storage.models import File 
+from sqlalchemy import func, select 
 
 router = APIRouter(prefix="/me", tags=["Profile"])
 
@@ -18,6 +21,16 @@ async def get_profile(current_user: User = Depends(get_current_user)):
             if role:
                 role_name = role.name
 
+    storage_used = 0
+    async with async_session_maker() as session:
+        stmt = (
+            select(func.sum(File.file_size_bytes))
+            .join(Track, Track.file_id == File.id)
+            .where(Track.user_id == current_user.id, Track.deleted_at.is_(None))
+        )
+        result = await session.execute(stmt)
+        storage_used = result.scalar() or 0
+
     return UserProfileResponse(
         id=str(current_user.id),
         username=current_user.username,
@@ -25,7 +38,8 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         avatar_url=current_user.avatar_url,
         bio=current_user.bio,
         profile_specialization=current_user.profile_specialization,
-        role_name=role_name
+        role_name=role_name,
+        storage_used_bytes=storage_used # Возвращаем рассчитанный объем
     )
 
 @router.put("", status_code=status.HTTP_200_OK)

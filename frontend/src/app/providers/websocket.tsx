@@ -68,6 +68,7 @@ export default function WebSocketProvider({ children }: { children: React.ReactN
 
             if (data.status === 'completed') {
                 queryClient.invalidateQueries({ queryKey: ['tracks'] });
+                queryClient.invalidateQueries({ queryKey: ['profile', 'me'] });
             }
           }
         } catch (e) {

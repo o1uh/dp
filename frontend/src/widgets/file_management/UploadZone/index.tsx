@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@/shared/api/query-keys';
+import { useUserStore } from '@/entities/user/model/store';
 import { useFileStore } from '@/entities/file/model/store';
 import { fileApi } from '@/entities/file/api';
 import { apiClient } from '@/shared/api/rest';
@@ -9,6 +12,8 @@ import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE } from '@/shared/config/constants';
 export const UploadZone = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { status, progress, error, setStatus, setProgress, setError, reset } = useFileStore();
+  const queryClient = useQueryClient();
+  const userId = useUserStore(state => state.profile?.id);
 
   const getAudioDuration = (file: File): Promise<number> => {
     return new Promise((resolve) => {
@@ -63,6 +68,8 @@ export const UploadZone = () => {
 
           if (initRes.is_duplicate) {
             setStatus('ready');
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRACKS.LIST(userId) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PROFILE.ME });
             setTimeout(() => reset(), 2000);
             return;
           }

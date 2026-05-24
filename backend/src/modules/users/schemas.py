@@ -14,6 +14,7 @@ class UserProfileResponse(BaseModel):
     bio: Optional[str] = None
     profile_specialization: Optional[str] = None
     role_name: Optional[str] = None
+    storage_used_bytes: int = 0
 
 class ProfileUpdateRequest(BaseModel):
     bio: Optional[str] = None

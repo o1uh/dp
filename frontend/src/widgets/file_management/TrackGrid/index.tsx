@@ -27,6 +27,7 @@ export const TrackGrid = () => {
     mutationFn: trackApi.deleteTrack,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRACKS.LIST(userId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PROFILE.ME });
     }
   });
 
