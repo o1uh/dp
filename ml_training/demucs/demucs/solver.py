@@ -122,7 +122,7 @@ class Solver(object):
             root = self.folder.parent
             cf = root / str(self.args.continue_from) / name
             logger.info("Loading from %s", cf)
-            package = torch.load(cf, 'cpu')
+            package = torch.load(cf, 'cpu', weights_only=False)
             self.best_state = package['best_state']
             if self.args.continue_best:
                 self.model.load_state_dict(package['best_state'], strict=False)
