@@ -43,13 +43,27 @@ async def process_webhook(payload: WebhookPayload):
         if payload.status == "completed":
             total_bytes = 0
             for stem_data in payload.stems:
-                stem = Stem(
-                    file_id=file_uuid,
-                    task_id=task_uuid,
-                    **stem_data.model_dump()
+                stmt_exists = select(Stem).where(
+                    Stem.file_id == file_uuid,
+                    Stem.stem_class == stem_data.stem_class,
+                    Stem.model_version == stem_data.model_version
                 )
-                uow.session.add(stem)
-                total_bytes += stem.file_size_bytes
+                existing_stem = (await uow.session.execute(stmt_exists)).scalar_one_or_none()
+
+                if existing_stem:
+                    existing_stem.task_id = task_uuid
+                    existing_stem.s3_key_flac = stem_data.s3_key_flac
+                    existing_stem.s3_key_mp3 = stem_data.s3_key_mp3
+                    existing_stem.file_size_bytes = stem_data.file_size_bytes
+                    total_bytes += stem_data.file_size_bytes
+                else:
+                    stem = Stem(
+                        file_id=file_uuid,
+                        task_id=task_uuid,
+                        **stem_data.model_dump()
+                    )
+                    uow.session.add(stem)
+                    total_bytes += stem.file_size_bytes
 
             if file_obj:
                 usage_log = UsageLog(

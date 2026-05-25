@@ -5,10 +5,14 @@ import requests
 import logging
 import ffmpeg
 import zipfile
+import torch
 from pathlib import Path
 from src.core.worker.celery_app import celery_app
 from src.ml_engine.s3_sync import download_file, upload_file
 from src.ml_engine.inference import separate_track
+from src.ml_engine.core import demucs_engine
+from src.ml_engine.io import load_audio, save_audio
+from src.ml_engine.optimizer import apply_inference_optimized
 from src.core.config import settings
 
 BUCKET_NAME = "audio-platform-uploads"
@@ -25,7 +29,7 @@ def _send_webhook(payload: dict):
         raise
 
 @celery_app.task(bind=True, name="process_audio", acks_late=True)
-def process_audio(self, task_id: str, s3_key_original: str, file_id: str):
+def process_audio(self, task_id: str, s3_key_original: str, file_id: str, model_config: dict = None):
     _send_webhook({
         "task_id": task_id,
         "file_id": file_id,
@@ -45,24 +49,84 @@ def process_audio(self, task_id: str, s3_key_original: str, file_id: str):
     }
 
     try:
+        model_config = model_config or {}
+        model_type = model_config.get("model", "htdemucs")
+        cached_stems = model_config.get("cached_stems", None)
+
+        logging.info(f"Executing task {task_id}: model={model_type}, has_cache={cached_stems is not None}")
         download_file(BUCKET_NAME, s3_key_original, input_file)
-        results = separate_track(input_file, temp_dir)
-        base_s3_path = f"stems/{file_id}/{task_id}"
-        
-        for stem_class, data in results.items():
-            s3_key_flac = f"{base_s3_path}/{stem_class}.flac"
-            s3_key_mp3 = f"{base_s3_path}/{stem_class}.mp3"
+
+        if model_type == "cascade_guitar" and cached_stems:
+            other_dirty_s3_key = cached_stems["other"]["s3_key_flac"]
+            other_dirty_local = temp_dir / "other_dirty.flac"
+            download_file(BUCKET_NAME, other_dirty_s3_key, other_dirty_local)
+
+            model_guitar = demucs_engine.load_guitar_model()
+            sample_rate = model_guitar.samplerate
+
+            audio_tensor = load_audio(input_file, sample_rate)
+            sources_guitar = apply_inference_optimized(model_guitar, audio_tensor, shifts=1)
+            guitar_tensor = sources_guitar[2]
+            demucs_engine.unload_guitar_model()
+
+            other_dirty_tensor = load_audio(other_dirty_local, sample_rate)
             
-            upload_file(BUCKET_NAME, Path(data["flac"]), s3_key_flac, "audio/flac")
-            upload_file(BUCKET_NAME, Path(data["mp3"]), s3_key_mp3, "audio/mpeg")
+            min_samples = min(other_dirty_tensor.shape[-1], guitar_tensor.shape[-1])
+            other_dirty_tensor_aligned = other_dirty_tensor[..., :min_samples]
+            guitar_tensor_aligned = guitar_tensor[..., :min_samples]
             
-            payload["stems"].append({
-                "stem_class": stem_class,
-                "s3_key_flac": s3_key_flac,
-                "s3_key_mp3": s3_key_mp3,
-                "file_size_bytes": data["size_flac"] + data["size_mp3"],
-                "model_version": "HT_Demucs_v4"
-            })
+            other_clean_tensor = other_dirty_tensor_aligned - guitar_tensor_aligned
+
+            max_val = torch.max(torch.abs(other_clean_tensor))
+            if max_val > 1.0:
+                other_clean_tensor = other_clean_tensor / max_val
+
+            stems_to_upload = {
+                "guitar": guitar_tensor_aligned,
+                "other": other_clean_tensor
+            }
+
+            base_s3_path = f"stems/{file_id}/{task_id}"
+            
+            for stem_class, tensor in stems_to_upload.items():
+                flac_path = temp_dir / f"{stem_class}.flac"
+                mp3_path = temp_dir / f"{stem_class}.mp3"
+                
+                save_audio(tensor, flac_path, sample_rate, format='flac')
+                save_audio(tensor, mp3_path, sample_rate, format='mp3')
+
+                s3_key_flac = f"{base_s3_path}/{stem_class}.flac"
+                s3_key_mp3 = f"{base_s3_path}/{stem_class}.mp3"
+
+                upload_file(BUCKET_NAME, flac_path, s3_key_flac, "audio/flac")
+                upload_file(BUCKET_NAME, mp3_path, s3_key_mp3, "audio/mpeg")
+
+                payload["stems"].append({
+                    "stem_class": stem_class,
+                    "s3_key_flac": s3_key_flac,
+                    "s3_key_mp3": s3_key_mp3,
+                    "file_size_bytes": flac_path.stat().st_size + mp3_path.stat().st_size,
+                    "model_version": "HT_Demucs_v4_Guitar_Only"
+                })
+
+        else:
+            results = separate_track(input_file, temp_dir, model_type)
+            base_s3_path = f"stems/{file_id}/{task_id}"
+            
+            for stem_class, data in results.items():
+                s3_key_flac = f"{base_s3_path}/{stem_class}.flac"
+                s3_key_mp3 = f"{base_s3_path}/{stem_class}.mp3"
+                
+                upload_file(BUCKET_NAME, Path(data["flac"]), s3_key_flac, "audio/flac")
+                upload_file(BUCKET_NAME, Path(data["mp3"]), s3_key_mp3, "audio/mpeg")
+                
+                payload["stems"].append({
+                    "stem_class": stem_class,
+                    "s3_key_flac": s3_key_flac,
+                    "s3_key_mp3": s3_key_mp3,
+                    "file_size_bytes": data["size_flac"] + data["size_mp3"],
+                    "model_version": "HT_Demucs_v4_Cascade" if model_type == "cascade_guitar" else "HT_Demucs_v4"
+                })
 
     except Exception as e:
         payload["status"] = "failed"

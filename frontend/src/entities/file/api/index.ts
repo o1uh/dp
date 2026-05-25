@@ -6,6 +6,7 @@ interface UploadInitData {
   file_size_bytes: number;
   duration_sec: number;
   original_filename: string;
+  separation_mode?: string;
 }
 
 interface UploadInitResponse {
