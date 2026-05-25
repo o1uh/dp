@@ -1,6 +1,6 @@
 from typing import List, Optional
 from datetime import datetime
-from sqlalchemy import select, update, func, or_
+from sqlalchemy import select, update, func, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.modules.library.models import Track, UserStem, UserSavedTrack, UserSavedStem
 from src.common.enums import VisibilityStatus
@@ -18,10 +18,9 @@ class LibraryRepository:
             select(Track)
             .where(
                 or_(
-                    Track.user_id == user_uuid,
+                    and_(Track.user_id == user_uuid, Track.deleted_at.is_(None)),
                     Track.id.in_(saved_tracks_stmt)
-                ),
-                Track.deleted_at.is_(None)
+                )
             )
             .order_by(Track.created_at.desc())
             .limit(limit)
@@ -38,10 +37,9 @@ class LibraryRepository:
             select(func.count(Track.id))
             .where(
                 or_(
-                    Track.user_id == user_uuid,
+                    and_(Track.user_id == user_uuid, Track.deleted_at.is_(None)),
                     Track.id.in_(saved_tracks_stmt)
-                ),
-                Track.deleted_at.is_(None)
+                )
             )
         )
         result = await self.session.execute(stmt)

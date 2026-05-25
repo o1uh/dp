@@ -12,6 +12,7 @@ class TrackUpdateDTO(BaseModel):
 
 class TrackResponse(BaseModel):
     id: str
+    user_id: str
     title: str
     original_filename: Optional[str]
     genre: Optional[str]
@@ -22,6 +23,7 @@ class TrackResponse(BaseModel):
     save_count: int
     downloads_count: int
     created_at: datetime
+    deleted_at: Optional[datetime] = None
 
 class TrackListResponse(BaseModel):
     items: List[TrackResponse]

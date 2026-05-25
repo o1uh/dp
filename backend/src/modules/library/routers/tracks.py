@@ -6,8 +6,8 @@ from src.modules.library.services import update_track_metadata, get_track_downlo
 from src.infrastructure.db.uow import UnitOfWork
 from src.modules.library.repositories import LibraryRepository
 from datetime import datetime
-from src.modules.library.schemas import AliasCreateRequest
 from src.modules.library.models import UserSavedTrack
+import uuid
 
 router = APIRouter(prefix="/tracks", tags=["Library"])
 
@@ -26,6 +26,7 @@ async def list_tracks(
         items = [
             TrackResponse(
                 id=str(t.id),
+                user_id=str(t.user_id),
                 title=t.title,
                 original_filename=t.original_filename,
                 genre=t.genre,
@@ -35,7 +36,8 @@ async def list_tracks(
                 play_count=t.play_count,
                 save_count=t.save_count,
                 downloads_count=t.downloads_count,
-                created_at=t.created_at
+                created_at=t.created_at,
+                deleted_at=t.deleted_at
             ) for t in tracks
         ]
         
@@ -51,9 +53,30 @@ async def delete_track(track_id: str, current_user: User = Depends(get_current_u
     async with UnitOfWork() as uow:
         repo = LibraryRepository(uow.session)
         track = await repo.get_track_by_id(track_id)
-        if track and str(track.user_id) == str(current_user.id):
-            track.deleted_at = datetime.utcnow()
+        
+        if not track:
+            from src.modules.library.models import UserSavedTrack
+            from sqlalchemy import delete
+            stmt = delete(UserSavedTrack).where(
+                UserSavedTrack.user_id == current_user.id,
+                UserSavedTrack.track_id == uuid.UUID(track_id)
+            )
+            await uow.session.execute(stmt)
             await uow.commit()
+            return
+
+        if str(track.user_id) == str(current_user.id):
+            track.deleted_at = datetime.utcnow()
+        else:
+            from src.modules.library.models import UserSavedTrack
+            from sqlalchemy import delete
+            stmt = delete(UserSavedTrack).where(
+                UserSavedTrack.user_id == current_user.id,
+                UserSavedTrack.track_id == track.id
+            )
+            await uow.session.execute(stmt)
+            
+        await uow.commit()
 
 @router.get("/{track_id}/download")
 async def download_track(track_id: str, current_user: User = Depends(get_current_user)):

@@ -3,6 +3,7 @@ import { PaginatedResponse } from '@/shared/api/types';
 
 export interface Track {
   id: string;
+  user_id?: string;
   title: string;
   original_filename?: string;
   genre?: string;
@@ -13,6 +14,7 @@ export interface Track {
   save_count: number;
   downloads_count: number;
   created_at: string;
+  deleted_at?: string | null;
 }
 
 export const trackApi = {
