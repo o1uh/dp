@@ -30,6 +30,7 @@ def _send_webhook(payload: dict):
 
 @celery_app.task(bind=True, name="process_audio", acks_late=True)
 def process_audio(self, task_id: str, s3_key_original: str, file_id: str, model_config: dict = None):
+    print(f"[WORKER] process_audio task received. task_id={task_id}, file_id={file_id}, model_config={model_config}", flush=True)
     _send_webhook({
         "task_id": task_id,
         "file_id": file_id,

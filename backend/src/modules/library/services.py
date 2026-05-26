@@ -64,6 +64,45 @@ async def process_track_ready_event(user_id: str, file_id: str, task_id: str) ->
             ) for ps in all_linked_stems
         ]
         lib_repo.add_user_stems(user_stems)
+
+        from src.modules.studio.models import StudioSession, StudioSessionTrack
+        
+        stmt_session = select(StudioSession).where(StudioSession.id == track.id)
+        session_obj = (await uow.session.execute(stmt_session)).scalar_one_or_none()
+        
+        if session_obj:
+            stmt_curr_tracks = select(StudioSessionTrack).where(StudioSessionTrack.session_id == session_obj.id)
+            curr_tracks = (await uow.session.execute(stmt_curr_tracks)).scalars().all()
+            
+            class_to_track = {}
+            for t in curr_tracks:
+                if t.stem_id:
+                    stem_info = await uow.session.get(Stem, t.stem_id)
+                    if stem_info:
+                        class_to_track[stem_info.stem_class] = t
+
+            max_index = max([t.track_index for t in curr_tracks]) if curr_tracks else -1
+            
+            for ps in all_linked_stems:
+                if ps.stem_class in class_to_track:
+                    class_to_track[ps.stem_class].stem_id = ps.id
+                else:
+                    max_index += 1
+                    new_session_track = StudioSessionTrack(
+                        session_id=session_obj.id,
+                        stem_id=ps.id,
+                        file_id=None,
+                        track_index=max_index,
+                        volume=1.0,
+                        pan=0.0,
+                        is_muted=False,
+                        is_solo=False,
+                        start_offset_ms=0,
+                        trim_start_ms=0,
+                        trim_end_ms=None
+                    )
+                    uow.session.add(new_session_track)
+
         await uow.commit()
 
 async def update_track_metadata(user_id: str, track_id: str, data: TrackUpdateDTO) -> None:

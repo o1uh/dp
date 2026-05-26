@@ -46,7 +46,7 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
         await uow.session.flush()
 
         logger.info(f"dispatch_task queueing Celery process_audio: task_id={task.id}, config={model_config_dict}")
-
+        print(f"[API DISPATCHER] Queueing Celery task. task_id={task.id}, config={model_config_dict}", flush=True)
         celery_task = celery_app.send_task(
             "process_audio",
             args=[str(task.id), file_obj.s3_key_original, file_id, model_config_dict]

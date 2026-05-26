@@ -4,7 +4,7 @@ from src.common.enums import TaskStatus
 
 class TaskStartRequest(BaseModel):
     file_id: str
-    model_config: Dict[str, str]
+    config: Dict[str, str]
 
 class TaskStatusResponse(BaseModel):
     id: str

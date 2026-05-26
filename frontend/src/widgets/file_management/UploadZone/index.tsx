@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/shared/api/query-keys';
 import { useUserStore } from '@/entities/user/model/store';
@@ -22,11 +22,6 @@ export const UploadZone = () => {
   const [trackTitle, setTrackTitle] = useState('');
   const [selectedModel, setSelectedModel] = useState<'htdemucs' | 'cascade_guitar'>('cascade_guitar');
 
-  const selectedModelRef = useRef(selectedModel);
-  useEffect(() => {
-    selectedModelRef.current = selectedModel;
-  }, [selectedModel]);
-
   const getAudioDuration = (file: File): Promise<number> => {
     return new Promise((resolve) => {
       const url = URL.createObjectURL(file);
@@ -41,7 +36,7 @@ export const UploadZone = () => {
 
   const initFileSelection = (file: File) => {
     reset();
-    setSelectedModel('cascade_guitar'); // Сброс на дефолт при каждом новом выборе файла
+    setSelectedModel('cascade_guitar'); 
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
       setError('Неподдерживаемый формат аудио.');
       return;
@@ -58,8 +53,11 @@ export const UploadZone = () => {
   const handleStartProcessing = async () => {
     if (!pendingFile) return;
     const file = pendingFile;
+    
+    const modelToUse = selectedModel; 
+    console.log("[UploadZone] Запуск обработки. Выбранная модель:", modelToUse);
+    
     setPendingFile(null);
-
     setStatus('hashing');
     
     try {
@@ -86,7 +84,7 @@ export const UploadZone = () => {
             file_size_bytes: file.size,
             duration_sec: duration,
             original_filename: `${trackTitle}${file.name.substring(file.name.lastIndexOf('.'))}`,
-            separation_mode: selectedModelRef.current
+            separation_mode: modelToUse
           });
 
           if (initRes.is_duplicate) {
@@ -98,9 +96,10 @@ export const UploadZone = () => {
               return;
             } else {
               setStatus('processing');
+              console.log("[UploadZone] Дубликат без стемов. Отправка задачи /tasks с моделью:", modelToUse);
               await apiClient.post('/tasks', {
                 file_id: initRes.file_id,
-                model_config: { model: selectedModelRef.current }
+                config: { model: modelToUse } 
               });
               return;
             }
@@ -111,9 +110,10 @@ export const UploadZone = () => {
             await fileApi.confirmUpload(initRes.file_id);
             setStatus('processing');
             
+            console.log("[UploadZone] Файл загружен. Отправка задачи /tasks с моделью:", modelToUse);
             await apiClient.post('/tasks', {
               file_id: initRes.file_id,
-              model_config: { model: selectedModelRef.current }
+              config: { model: modelToUse }
             });
           }
         } catch (err: any) {
