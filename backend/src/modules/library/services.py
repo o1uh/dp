@@ -53,17 +53,19 @@ async def process_track_ready_event(user_id: str, file_id: str, task_id: str) ->
                     all_linked_stems.append(fs)
                     linked_classes.add(fs.stem_class)
 
-        stmt_del = delete(UserStem).where(UserStem.track_id == track.id)
-        await uow.session.execute(stmt_del)
+        stmt_existing = select(UserStem.stem_id).where(UserStem.track_id == track.id)
+        existing_stem_ids = set((await uow.session.execute(stmt_existing)).scalars().all())
 
         user_stems = [
             UserStem(
                 user_id=uuid.UUID(user_id),
                 stem_id=ps.id,
                 track_id=track.id
-            ) for ps in all_linked_stems
+            ) for ps in all_linked_stems if ps.id not in existing_stem_ids
         ]
-        lib_repo.add_user_stems(user_stems)
+        
+        if user_stems:
+            lib_repo.add_user_stems(user_stems)
 
         from src.modules.studio.models import StudioSession, StudioSessionTrack
         

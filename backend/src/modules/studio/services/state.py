@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 from sqlalchemy import select
 from src.infrastructure.db.uow import UnitOfWork
 from src.modules.studio.schemas import SessionSaveRequest, SessionLoadResponse, StudioTrackDTO
@@ -6,8 +7,9 @@ from src.modules.studio.models import StudioSession, StudioSessionTrack
 from src.modules.studio.repositories import StudioRepository
 from src.modules.library.repositories import LibraryRepository
 from src.modules.library.models import UserStem
-from src.modules.processing.models import Stem
+from src.modules.processing.models import Stem, ProcessingTask
 from src.modules.storage.models import File
+from src.common.enums import TaskStatus
 from src.core.exceptions import AccessDeniedError, NotFoundError, BusinessRuleError
 
 async def save_session_state(user_id: str, session_id: str, data: SessionSaveRequest) -> str:
@@ -68,7 +70,7 @@ async def save_session_state(user_id: str, session_id: str, data: SessionSaveReq
         await uow.commit()
         return str(session.id)
 
-async def load_session_state(user_id: str, session_id: str) -> SessionLoadResponse:
+async def load_session_state(user_id: str, session_id: str, task_id: Optional[str] = None) -> SessionLoadResponse:
     try:
         session_uuid = uuid.UUID(session_id)
     except ValueError:
@@ -144,18 +146,64 @@ async def load_session_state(user_id: str, session_id: str) -> SessionLoadRespon
         if str(track.user_id) != user_id:
             raise AccessDeniedError("Access denied")
 
-        stmt = select(UserStem).where(UserStem.track_id == track.id)
-        stems = (await uow.session.execute(stmt)).scalars().all()
+        target_task_uuid = None
+        if task_id:
+            target_task_uuid = uuid.UUID(task_id)
+        else:
+            stmt_latest = (
+                select(ProcessingTask.id)
+                .where(ProcessingTask.file_id == track.file_id, ProcessingTask.status == TaskStatus.completed)
+                .order_by(ProcessingTask.created_at.desc())
+                .limit(1)
+            )
+            target_task_uuid = (await uow.session.execute(stmt_latest)).scalar_one_or_none()
+
+        if not target_task_uuid:
+            return SessionLoadResponse(
+                id=session_id, 
+                project_name=f"Mix: {track.title}",
+                global_settings={},
+                tracks=[]
+            )
+
+        stmt_task = select(ProcessingTask).where(ProcessingTask.id == target_task_uuid)
+        task_obj = (await uow.session.execute(stmt_task)).scalar_one_or_none()
         
+        is_cascade = False
+        if task_obj and "cascade" in task_obj.model_config.get("model", ""):
+            is_cascade = True
+
+        stems_to_load = []
+        if is_cascade:
+            stmt_stems = select(Stem).where(
+                Stem.file_id == track.file_id,
+                Stem.stem_class.in_(["drums", "bass", "vocals", "guitar", "other"])
+            )
+            all_stems = (await uow.session.execute(stmt_stems)).scalars().all()
+            for s in all_stems:
+                if s.stem_class in ["guitar", "other"]:
+                    if s.task_id == target_task_uuid:
+                        stems_to_load.append(s)
+                else:
+                    stems_to_load.append(s)
+        else:
+            stmt_stems = select(Stem).where(Stem.task_id == target_task_uuid)
+            stems_to_load = (await uow.session.execute(stmt_stems)).scalars().all()
+
         track_dtos = []
-        for idx, user_stem in enumerate(stems):
-            stem_obj = await uow.session.get(Stem, user_stem.stem_id)
-            track_name = stem_obj.stem_class.capitalize() if stem_obj else f"Дорожка {idx + 1}"
-            
+        for idx, stem_obj in enumerate(stems_to_load):
+            stmt_us = select(UserStem).where(
+                UserStem.stem_id == stem_obj.id,
+                UserStem.user_id == uuid.UUID(user_id)
+            )
+            user_stem = (await uow.session.execute(stmt_us)).scalar_one_or_none()
+            if not user_stem:
+                continue
+
             track_dtos.append(
                 StudioTrackDTO(
                     id=str(uuid.uuid4()), 
-                    name=track_name,
+                    name=stem_obj.stem_class.capitalize(),
                     stem_id=str(user_stem.id),
                     file_id=None,
                     track_index=idx,

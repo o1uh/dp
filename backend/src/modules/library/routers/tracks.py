@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, status, Query
 from src.common.dependencies import get_current_user
 from src.modules.users.models import User
-from src.modules.library.schemas import TrackUpdateDTO, TrackListResponse, TrackResponse, AliasCreateRequest
+from src.modules.library.schemas import TrackUpdateDTO, TrackListResponse, TrackResponse, AliasCreateRequest, ProcessedModelInfo
 from src.modules.library.services import update_track_metadata, get_track_download_url
 from src.infrastructure.db.uow import UnitOfWork
 from src.modules.library.repositories import LibraryRepository
 from datetime import datetime
 from src.modules.library.models import UserSavedTrack
+from src.modules.processing.models import ProcessingTask, Stem
+from sqlalchemy import select, func
 import uuid
 
 router = APIRouter(prefix="/tracks", tags=["Library"])
@@ -23,10 +25,57 @@ async def list_tracks(
         tracks = await repo.get_user_tracks(str(current_user.id), limit, offset)
         total = await repo.get_user_tracks_count(str(current_user.id))
 
+        file_ids = [t.file_id for t in tracks if t.file_id]
+        tasks_map = {}
+        active_files = set()
+        
+        if file_ids:
+            stmt_active = select(ProcessingTask.file_id).where(
+                ProcessingTask.file_id.in_(file_ids),
+                ProcessingTask.status.in_(["pending", "processing"])
+            )
+            active_res = await uow.session.execute(stmt_active)
+            active_files = {str(f_id) for f_id in active_res.scalars().all()}
+
+            stmt_tasks = (
+                select(
+                    ProcessingTask.id,
+                    ProcessingTask.file_id,
+                    ProcessingTask.model_config,
+                    ProcessingTask.created_at,
+                    func.count(Stem.id).label("stem_count")
+                )
+                .join(Stem, Stem.task_id == ProcessingTask.id, isouter=True)
+                .where(
+                    ProcessingTask.file_id.in_(file_ids),
+                    ProcessingTask.status == "completed"
+                )
+                .group_by(ProcessingTask.id, ProcessingTask.file_id, ProcessingTask.model_config, ProcessingTask.created_at)
+            )
+            tasks_res = await uow.session.execute(stmt_tasks)
+            for row in tasks_res.all():
+                f_id = str(row.file_id)
+                if f_id not in tasks_map:
+                    tasks_map[f_id] = []
+                
+                model_name = row.model_config.get("model", "htdemucs")
+                if row.model_config.get("type") == "render":
+                    model_name = "render"
+                
+                tasks_map[f_id].append(
+                    ProcessedModelInfo(
+                        task_id=str(row.id),
+                        model_name=model_name,
+                        stem_count=row.stem_count,
+                        created_at=row.created_at
+                    )
+                )
+
         items = [
             TrackResponse(
                 id=str(t.id),
                 user_id=str(t.user_id),
+                file_id=str(t.file_id) if t.file_id else None,
                 title=t.title,
                 original_filename=t.original_filename,
                 genre=t.genre,
@@ -37,7 +86,9 @@ async def list_tracks(
                 save_count=t.save_count,
                 downloads_count=t.downloads_count,
                 created_at=t.created_at,
-                deleted_at=t.deleted_at
+                deleted_at=t.deleted_at,
+                processed_models=tasks_map.get(str(t.file_id), []) if t.file_id else [],
+                is_processing=str(t.file_id) in active_files if t.file_id else False
             ) for t in tracks
         ]
         
@@ -55,7 +106,6 @@ async def delete_track(track_id: str, current_user: User = Depends(get_current_u
         track = await repo.get_track_by_id(track_id)
         
         if not track:
-            from src.modules.library.models import UserSavedTrack
             from sqlalchemy import delete
             stmt = delete(UserSavedTrack).where(
                 UserSavedTrack.user_id == current_user.id,
@@ -68,7 +118,6 @@ async def delete_track(track_id: str, current_user: User = Depends(get_current_u
         if str(track.user_id) == str(current_user.id):
             track.deleted_at = datetime.utcnow()
         else:
-            from src.modules.library.models import UserSavedTrack
             from sqlalchemy import delete
             stmt = delete(UserSavedTrack).where(
                 UserSavedTrack.user_id == current_user.id,
