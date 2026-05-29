@@ -37,21 +37,8 @@ async def process_track_ready_event(user_id: str, file_id: str, task_id: str) ->
             lib_repo.add_track(track)
             await uow.session.flush()
 
-        stmt_stems = select(Stem).where(Stem.task_id == uuid.UUID(task_id))
-        result = await uow.session.execute(stmt_stems)
-        task_stems = result.scalars().all()
-
-        all_linked_stems = list(task_stems)
-        linked_classes = {s.stem_class for s in task_stems}
-
-        if len(linked_classes) < 5:
-            stmt_all = select(Stem).where(Stem.file_id == uuid.UUID(file_id))
-            all_file_stems = (await uow.session.execute(stmt_all)).scalars().all()
-            
-            for fs in all_file_stems:
-                if fs.stem_class not in linked_classes:
-                    all_linked_stems.append(fs)
-                    linked_classes.add(fs.stem_class)
+        stmt_all = select(Stem).where(Stem.file_id == uuid.UUID(file_id))
+        all_file_stems = (await uow.session.execute(stmt_all)).scalars().all()
 
         stmt_existing = select(UserStem.stem_id).where(UserStem.track_id == track.id)
         existing_stem_ids = set((await uow.session.execute(stmt_existing)).scalars().all())
@@ -61,7 +48,7 @@ async def process_track_ready_event(user_id: str, file_id: str, task_id: str) ->
                 user_id=uuid.UUID(user_id),
                 stem_id=ps.id,
                 track_id=track.id
-            ) for ps in all_linked_stems if ps.id not in existing_stem_ids
+            ) for ps in all_file_stems if ps.id not in existing_stem_ids
         ]
         
         if user_stems:
@@ -85,7 +72,7 @@ async def process_track_ready_event(user_id: str, file_id: str, task_id: str) ->
 
             max_index = max([t.track_index for t in curr_tracks]) if curr_tracks else -1
             
-            for ps in all_linked_stems:
+            for ps in all_file_stems:
                 if ps.stem_class in class_to_track:
                     class_to_track[ps.stem_class].stem_id = ps.id
                 else:

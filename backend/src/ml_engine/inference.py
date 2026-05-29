@@ -5,7 +5,6 @@ from src.ml_engine.io import load_audio, save_audio
 from src.ml_engine.optimizer import apply_inference_optimized
 
 STEM_CLASSES_4 = ["drums", "bass", "other", "vocals"]
-STEM_CLASSES_5 = ["drums", "bass", "other", "vocals", "guitar"]
 
 def separate_track(input_path: Path, output_dir: Path, model_type: str = "htdemucs") -> dict:
     model_4 = demucs_engine.load_4_stems_model()
@@ -37,11 +36,12 @@ def separate_track(input_path: Path, output_dir: Path, model_type: str = "htdemu
         stems_mapping = {
             "drums": drums_tensor,
             "bass": bass_tensor,
-            "other": other_clean_tensor,
+            "other": other_standard_tensor,
+            "other_clean": other_clean_tensor,
             "vocals": vocals_tensor,
             "guitar": guitar_tensor
         }
-        target_classes = STEM_CLASSES_5
+        target_classes = ["drums", "bass", "other", "other_clean", "vocals", "guitar"]
     else:
         stems_mapping = {
             "drums": drums_tensor,

@@ -101,13 +101,20 @@ async def load_session_state(user_id: str, session_id: str, task_id: Optional[st
                         UserStem.user_id == uuid.UUID(user_id)
                     )
                     user_stem = (await uow.session.execute(stmt)).scalar_one_or_none()
+                    if not user_stem:
+                        stmt_track = select(Track).where(Track.file_id == stem_obj.file_id, Track.user_id == uuid.UUID(user_id)).limit(1)
+                        track_obj = (await uow.session.execute(stmt_track)).scalar_one_or_none()
+                        if track_obj:
+                            user_stem = UserStem(
+                                user_id=uuid.UUID(user_id),
+                                stem_id=t.stem_id,
+                                track_id=track_obj.id
+                            )
+                            uow.session.add(user_stem)
+                            await uow.session.flush()
+                    
                     if user_stem:
                         logical_stem_id = str(user_stem.id)
-                    else:
-                        stmt_pub = select(UserStem).where(UserStem.stem_id == t.stem_id).limit(1)
-                        user_stem_pub = (await uow.session.execute(stmt_pub)).scalar_one_or_none()
-                        if user_stem_pub:
-                            logical_stem_id = str(user_stem_pub.id)
                 
                 elif t.file_id:
                     file_obj = await uow.session.get(File, t.file_id)
@@ -152,7 +159,11 @@ async def load_session_state(user_id: str, session_id: str, task_id: Optional[st
         else:
             stmt_latest = (
                 select(ProcessingTask.id)
-                .where(ProcessingTask.file_id == track.file_id, ProcessingTask.status == TaskStatus.completed)
+                .where(
+                    ProcessingTask.file_id == track.file_id, 
+                    ProcessingTask.status == TaskStatus.completed,
+                    ProcessingTask.user_id == uuid.UUID(user_id)
+                )
                 .order_by(ProcessingTask.created_at.desc())
                 .limit(1)
             )
@@ -169,42 +180,43 @@ async def load_session_state(user_id: str, session_id: str, task_id: Optional[st
         stmt_task = select(ProcessingTask).where(ProcessingTask.id == target_task_uuid)
         task_obj = (await uow.session.execute(stmt_task)).scalar_one_or_none()
         
-        is_cascade = False
-        if task_obj and "cascade" in task_obj.model_config.get("model", ""):
-            is_cascade = True
+        model_name = "htdemucs"
+        if task_obj and task_obj.model_config:
+            model_name = task_obj.model_config.get("model", "htdemucs")
+
+        stmt_us = select(UserStem).where(UserStem.track_id == track.id)
+        user_stems = (await uow.session.execute(stmt_us)).scalars().all()
+        user_stem_ids = [us.stem_id for us in user_stems]
+
+        all_user_stems = []
+        if user_stem_ids:
+            stmt_stems = select(Stem).where(Stem.id.in_(user_stem_ids))
+            all_user_stems = (await uow.session.execute(stmt_stems)).scalars().all()
 
         stems_to_load = []
-        if is_cascade:
-            stmt_stems = select(Stem).where(
-                Stem.file_id == track.file_id,
-                Stem.stem_class.in_(["drums", "bass", "vocals", "guitar", "other"])
-            )
-            all_stems = (await uow.session.execute(stmt_stems)).scalars().all()
-            for s in all_stems:
+        if model_name == "cascade_guitar":
+            for s in all_user_stems:
                 if s.stem_class in ["guitar", "other"]:
-                    if s.task_id == target_task_uuid:
+                    if s.model_version != "HT_Demucs_v4":
                         stems_to_load.append(s)
                 else:
-                    stems_to_load.append(s)
+                    if s.model_version == "HT_Demucs_v4":
+                        stems_to_load.append(s)
         else:
-            stmt_stems = select(Stem).where(Stem.task_id == target_task_uuid)
-            stems_to_load = (await uow.session.execute(stmt_stems)).scalars().all()
+                if s.model_version == "HT_Demucs_v4":
+                    stems_to_load.append(s)
 
         track_dtos = []
         for idx, stem_obj in enumerate(stems_to_load):
-            stmt_us = select(UserStem).where(
-                UserStem.stem_id == stem_obj.id,
-                UserStem.user_id == uuid.UUID(user_id)
-            )
-            user_stem = (await uow.session.execute(stmt_us)).scalar_one_or_none()
-            if not user_stem:
+            user_stem_obj = next((us for us in user_stems if us.stem_id == stem_obj.id), None)
+            if not user_stem_obj:
                 continue
 
             track_dtos.append(
                 StudioTrackDTO(
                     id=str(uuid.uuid4()), 
                     name=stem_obj.stem_class.capitalize(),
-                    stem_id=str(user_stem.id),
+                    stem_id=str(user_stem_obj.id),
                     file_id=None,
                     track_index=idx,
                     volume=1.0,

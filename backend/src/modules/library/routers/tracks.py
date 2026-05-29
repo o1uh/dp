@@ -32,7 +32,8 @@ async def list_tracks(
         if file_ids:
             stmt_active = select(ProcessingTask.file_id).where(
                 ProcessingTask.file_id.in_(file_ids),
-                ProcessingTask.status.in_(["pending", "processing"])
+                ProcessingTask.status.in_(["pending", "processing"]),
+                ProcessingTask.user_id == current_user.id
             )
             active_res = await uow.session.execute(stmt_active)
             active_files = {str(f_id) for f_id in active_res.scalars().all()}
@@ -42,15 +43,13 @@ async def list_tracks(
                     ProcessingTask.id,
                     ProcessingTask.file_id,
                     ProcessingTask.model_config,
-                    ProcessingTask.created_at,
-                    func.count(Stem.id).label("stem_count")
+                    ProcessingTask.created_at
                 )
-                .join(Stem, Stem.task_id == ProcessingTask.id, isouter=True)
                 .where(
                     ProcessingTask.file_id.in_(file_ids),
-                    ProcessingTask.status == "completed"
+                    ProcessingTask.status == "completed",
+                    ProcessingTask.user_id == current_user.id
                 )
-                .group_by(ProcessingTask.id, ProcessingTask.file_id, ProcessingTask.model_config, ProcessingTask.created_at)
             )
             tasks_res = await uow.session.execute(stmt_tasks)
             for row in tasks_res.all():
@@ -62,11 +61,18 @@ async def list_tracks(
                 if row.model_config.get("type") == "render":
                     model_name = "render"
                 
+                if model_name == "cascade_guitar":
+                    stem_count = 5
+                elif model_name == "render":
+                    stem_count = 1
+                else:
+                    stem_count = 4
+                
                 tasks_map[f_id].append(
                     ProcessedModelInfo(
                         task_id=str(row.id),
                         model_name=model_name,
-                        stem_count=row.stem_count,
+                        stem_count=stem_count,
                         created_at=row.created_at
                     )
                 )

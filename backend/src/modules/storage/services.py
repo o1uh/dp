@@ -5,12 +5,12 @@ from src.modules.storage.repositories import FileRepository
 from src.modules.storage.models import File
 from src.modules.storage.schemas import FileUploadRequest, FileUploadResponse
 from src.infrastructure.s3.presigned import generate_put_url
-from src.common.enums import FileProcessingStatus
+from src.common.enums import FileProcessingStatus, TaskStatus
 
 BUCKET_NAME = "audio-platform-uploads"
 
 async def init_upload(data: FileUploadRequest, user_id: str) -> FileUploadResponse:
-    from src.modules.processing.models import Stem
+    from src.modules.processing.models import Stem, ProcessingTask
     from src.modules.library.models import Track, UserStem
 
     async with UnitOfWork() as uow:
@@ -22,58 +22,94 @@ async def init_upload(data: FileUploadRequest, user_id: str) -> FileUploadRespon
                 stems_data = []
                 
                 if existing_file.processing_status == FileProcessingStatus.ready:
-                    stmt_stems = select(Stem).where(Stem.file_id == existing_file.id)
-                    physical_stems = (await uow.session.execute(stmt_stems)).scalars().all()
+                    stmt_tasks = select(ProcessingTask).where(
+                        ProcessingTask.file_id == existing_file.id,
+                        ProcessingTask.status == TaskStatus.completed
+                    )
+                    completed_tasks = (await uow.session.execute(stmt_tasks)).scalars().all()
                     
-                    has_guitar = any(s.stem_class == "guitar" for s in physical_stems)
+                    if data.separation_mode == "cascade_guitar":
+                        allowed_tasks = [t for t in completed_tasks if t.model_config.get("model") in ["htdemucs", "cascade_guitar"]]
+                    else:
+                        allowed_tasks = [t for t in completed_tasks if t.model_config.get("model") == "htdemucs"]
+
+                    has_guitar_task = any(t.model_config.get("model") == "cascade_guitar" for t in allowed_tasks)
                     
-                    if data.separation_mode == "cascade_guitar" and not has_guitar:
+                    if data.separation_mode == "cascade_guitar" and not has_guitar_task:
                         stems_data = []
                     else:
-                        stems_data = [
-                            {
-                                "stem_class": s.stem_class, 
-                                "s3_key_flac": s.s3_key_flac, 
-                                "s3_key_mp3": s.s3_key_mp3
-                            } for s in physical_stems
-                        ]
-
-                        stmt_check = select(Track).where(
-                            Track.user_id == uuid.UUID(user_id),
-                            Track.file_id == existing_file.id,
-                            Track.deleted_at.is_(None)
-                        )
-                        existing_track = (await uow.session.execute(stmt_check)).scalar_one_or_none()
-                        
-                        if not existing_track and stems_data:
-                            track = Track(
-                                user_id=uuid.UUID(user_id),
-                                file_id=existing_file.id,
-                                title=data.original_filename,
-                                original_filename=data.original_filename
+                        if allowed_tasks:
+                            stmt_check = select(Track).where(
+                                Track.user_id == uuid.UUID(user_id),
+                                Track.file_id == existing_file.id,
+                                Track.deleted_at.is_(None)
                             )
-                            uow.session.add(track)
-                            await uow.session.flush()
-
-                            user_stems = [
-                                UserStem(
+                            track = (await uow.session.execute(stmt_check)).scalar_one_or_none()
+                            
+                            if not track:
+                                track = Track(
                                     user_id=uuid.UUID(user_id),
-                                    stem_id=ps.id,
-                                    track_id=track.id
-                                ) for ps in physical_stems
-                            ]
-                            uow.session.add_all(user_stems)
+                                    file_id=existing_file.id,
+                                    title=data.original_filename,
+                                    original_filename=data.original_filename
+                                )
+                                uow.session.add(track)
+                                await uow.session.flush()
 
-                await uow.commit()
+                            for task_orig in allowed_tasks:
+                                stmt_task_check = select(ProcessingTask).where(
+                                    ProcessingTask.file_id == existing_file.id,
+                                    ProcessingTask.user_id == uuid.UUID(user_id),
+                                    ProcessingTask.model_config == task_orig.model_config
+                                )
+                                cloned_task = (await uow.session.execute(stmt_task_check)).scalar_one_or_none()
 
-                return FileUploadResponse(
-                    is_duplicate=True,
-                    file_id=existing_file.id,
-                    s3_key=existing_file.s3_key_original,
-                    stems=stems_data if stems_data else None
-                )
+                                if not cloned_task:
+                                    cloned_task = ProcessingTask(
+                                        user_id=uuid.UUID(user_id),
+                                        file_id=existing_file.id,
+                                        model_config=task_orig.model_config,
+                                        status=TaskStatus.completed,
+                                        celery_task_id=task_orig.celery_task_id,
+                                        started_at=task_orig.started_at,
+                                        completed_at=task_orig.completed_at
+                                    )
+                                    uow.session.add(cloned_task)
+                                    await uow.session.flush()
+
+                                stmt_stems = select(Stem).where(Stem.task_id == task_orig.id)
+                                orig_stems = (await uow.session.execute(stmt_stems)).scalars().all()
+
+                                for s_orig in orig_stems:
+                                    stmt_us_check = select(UserStem).where(
+                                        UserStem.user_id == uuid.UUID(user_id),
+                                        UserStem.stem_id == s_orig.id
+                                    )
+                                    existing_us = (await uow.session.execute(stmt_us_check)).scalar_one_or_none()
+                                    
+                                    if not existing_us:
+                                        user_stem = UserStem(
+                                            user_id=uuid.UUID(user_id),
+                                            stem_id=s_orig.id,
+                                            track_id=track.id
+                                        )
+                                        uow.session.add(user_stem)
+
+                                    stems_data.append({
+                                        "stem_class": s_orig.stem_class,
+                                        "s3_key_flac": s_orig.s3_key_flac,
+                                        "s3_key_mp3": s_orig.s3_key_mp3
+                                    })
+
+                            await uow.commit()
+
+                            return FileUploadResponse(
+                                is_duplicate=True,
+                                file_id=existing_file.id,
+                                s3_key=existing_file.s3_key_original,
+                                stems=stems_data if stems_data else None
+                            )
             
-            # повторная выдача ссылки, если загрузка прервалась (awaiting_upload) или была ошибка
             upload_url = await generate_put_url(BUCKET_NAME, existing_file.s3_key_original, existing_file.mime_type)
             return FileUploadResponse(
                 is_duplicate=False,
@@ -82,7 +118,6 @@ async def init_upload(data: FileUploadRequest, user_id: str) -> FileUploadRespon
                 s3_key=existing_file.s3_key_original
             )
 
-        #новый файл
         s3_key = f"originals/{uuid.uuid4()}/{data.original_filename}"
         new_file = File(
             file_hash=data.file_hash,
@@ -104,6 +139,7 @@ async def init_upload(data: FileUploadRequest, user_id: str) -> FileUploadRespon
         )
         await uow.commit()
         return response
+
 
 async def confirm_upload(file_id: str) -> None:
     async with UnitOfWork() as uow:

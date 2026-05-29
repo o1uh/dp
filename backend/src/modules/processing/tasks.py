@@ -31,12 +31,24 @@ def _send_webhook(payload: dict):
 @celery_app.task(bind=True, name="process_audio", acks_late=True)
 def process_audio(self, task_id: str, s3_key_original: str, file_id: str, model_config: dict = None):
     print(f"[WORKER] process_audio task received. task_id={task_id}, file_id={file_id}, model_config={model_config}", flush=True)
+    
+    model_config = model_config or {}
+    parent_task_id = model_config.get("parent_task_id")
+
     _send_webhook({
         "task_id": task_id,
         "file_id": file_id,
         "status": "processing",
         "stems": []
     })
+    
+    if parent_task_id:
+        _send_webhook({
+            "task_id": parent_task_id,
+            "file_id": file_id,
+            "status": "processing",
+            "stems": []
+        })
 
     temp_dir = Path(tempfile.mkdtemp())
     input_file = temp_dir / "input.audio"
@@ -50,7 +62,6 @@ def process_audio(self, task_id: str, s3_key_original: str, file_id: str, model_
     }
 
     try:
-        model_config = model_config or {}
         model_type = model_config.get("model", "htdemucs")
         cached_stems = model_config.get("cached_stems", None)
 
@@ -107,7 +118,8 @@ def process_audio(self, task_id: str, s3_key_original: str, file_id: str, model_
                     "s3_key_flac": s3_key_flac,
                     "s3_key_mp3": s3_key_mp3,
                     "file_size_bytes": flac_path.stat().st_size + mp3_path.stat().st_size,
-                    "model_version": "HT_Demucs_v4_Guitar_Only"
+                    "model_version": "HT_Demucs_v4_Guitar_Only",
+                    "task_id": task_id
                 })
 
         else:
@@ -121,17 +133,44 @@ def process_audio(self, task_id: str, s3_key_original: str, file_id: str, model_
                 upload_file(BUCKET_NAME, Path(data["flac"]), s3_key_flac, "audio/flac")
                 upload_file(BUCKET_NAME, Path(data["mp3"]), s3_key_mp3, "audio/mpeg")
                 
+                if parent_task_id:
+                    if stem_class == "other_clean":
+                        db_stem_class = "other"
+                        target_task = task_id
+                        model_ver = "HT_Demucs_v4_Cascade"
+                    elif stem_class == "guitar":
+                        db_stem_class = "guitar"
+                        target_task = task_id
+                        model_ver = "HT_Demucs_v4_Cascade"
+                    else:
+                        db_stem_class = stem_class
+                        target_task = parent_task_id
+                        model_ver = "HT_Demucs_v4"
+                else:
+                    db_stem_class = stem_class
+                    target_task = task_id
+                    model_ver = "HT_Demucs_v4_Cascade" if model_type == "cascade_guitar" else "HT_Demucs_v4"
+
                 payload["stems"].append({
-                    "stem_class": stem_class,
+                    "stem_class": db_stem_class,
                     "s3_key_flac": s3_key_flac,
                     "s3_key_mp3": s3_key_mp3,
                     "file_size_bytes": data["size_flac"] + data["size_mp3"],
-                    "model_version": "HT_Demucs_v4_Cascade" if model_type == "cascade_guitar" else "HT_Demucs_v4"
+                    "model_version": model_ver,
+                    "task_id": target_task
                 })
 
     except Exception as e:
         payload["status"] = "failed"
         payload["error_message"] = str(e)
+        if parent_task_id:
+            _send_webhook({
+                "task_id": parent_task_id,
+                "file_id": file_id,
+                "status": "failed",
+                "error_message": str(e),
+                "stems": []
+            })
         logging.error(f"Task {task_id} failed: {e}")
         raise
     finally:
