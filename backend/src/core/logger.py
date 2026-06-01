@@ -9,6 +9,9 @@ class JSONFormatter(logging.Formatter):
             "level": record.levelname,
             "name": record.name,
             "message": record.getMessage(),
+            "pathname": record.pathname,
+            "lineno": record.lineno,
+            "funcName": record.funcName
         }
         if record.exc_info:
             log_record["exc_info"] = self.formatException(record.exc_info)
@@ -16,7 +19,7 @@ class JSONFormatter(logging.Formatter):
 
 def setup_logger() -> logging.Logger:
     logger = logging.getLogger("audio_platform")
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     
     handler = logging.StreamHandler(sys.stdout)
     
@@ -24,7 +27,7 @@ def setup_logger() -> logging.Logger:
     if env == "production":
         handler.setFormatter(JSONFormatter())
     else:
-        formatter = logging.Formatter('%(levelname)-5.5s [%(name)s] %(message)s')
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s] [%(name)s] (%(pathname)s:%(lineno)d) - %(message)s')
         handler.setFormatter(formatter)
     
     if not logger.handlers:
