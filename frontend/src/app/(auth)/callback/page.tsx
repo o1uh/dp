@@ -34,7 +34,16 @@ export default function OAuthCallbackPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
-      <span className="text-xl animate-pulse text-primary">Авторизация...</span>
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative">
+          <div className="w-12 h-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+          <div className="absolute inset-0 w-12 h-12 rounded-full border-2 border-secondary/20 border-b-secondary animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1s' }} />
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-sm font-semibold text-gray-300">Авторизация...</span>
+          <span className="text-[10px] font-mono text-gray-600 uppercase tracking-widest">OAuth</span>
+        </div>
+      </div>
     </div>
   );
 }

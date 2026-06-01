@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation'; 
 import { useUserStore } from '@/entities/user/model/store'; 
@@ -22,6 +22,33 @@ export const StudioView = ({ sessionId, taskId }: { sessionId: string; taskId?: 
 
   const { isAuth, _hasHydrated } = useUserStore();
   const router = useRouter();
+
+  // Ссылки для синхронизации скролла
+  const mixerScrollRef = useRef<HTMLDivElement>(null);
+  const workspaceScrollRef = useRef<HTMLDivElement>(null);
+  const isScrollingRef = useRef(false);
+
+  const handleMixerScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isScrollingRef.current) return;
+    isScrollingRef.current = true;
+    if (workspaceScrollRef.current) {
+      workspaceScrollRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+    requestAnimationFrame(() => {
+      isScrollingRef.current = false;
+    });
+  };
+
+  const handleWorkspaceScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isScrollingRef.current) return;
+    isScrollingRef.current = true;
+    if (mixerScrollRef.current) {
+      mixerScrollRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+    requestAnimationFrame(() => {
+      isScrollingRef.current = false;
+    });
+  };
 
   useEffect(() => {
     if (_hasHydrated && !isAuth) {
@@ -93,18 +120,24 @@ export const StudioView = ({ sessionId, taskId }: { sessionId: string; taskId?: 
 
   if (!_hasHydrated || !isAuth) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#090D16]">
-        <span className="text-xs font-mono tracking-wider text-gray-500 uppercase">ПРОВЕРКА АВТОРИЗАЦИИ...</span>
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+          <span className="text-[10px] font-mono text-gray-600 uppercase tracking-widest">ПРОВЕРКА АВТОРИЗАЦИИ...</span>
+        </div>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#090D16]">
+      <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-          <span className="text-xs font-mono tracking-wider text-gray-500 uppercase">ЗАГРУЗКА DAW ОКРУЖЕНИЯ...</span>
+          <div className="relative">
+            <div className="w-12 h-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+            <div className="absolute inset-0 w-12 h-12 rounded-full border-2 border-secondary/20 border-b-secondary animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1s' }} />
+          </div>
+          <span className="text-xs font-mono text-gray-500 uppercase tracking-widest">ЗАГРУЗКА DAW...</span>
         </div>
       </div>
     );
@@ -112,26 +145,30 @@ export const StudioView = ({ sessionId, taskId }: { sessionId: string; taskId?: 
 
   return (
     <div className="flex flex-col h-screen w-full bg-background overflow-hidden text-white font-sans antialiased">
-      {/* Шапка DAW */}
-      <header className="h-11 bg-background-surface border-b border-slate-900 flex items-center justify-between px-4 select-none">
+      {/* DAW Header */}
+      <header className="h-10 bg-background-deep border-b border-border flex items-center justify-between px-4 select-none flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="h-2 w-2 rounded-full bg-accent-green" />
+          <div className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-green opacity-40" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-accent-green" />
+          </div>
           <h1 className="text-xs font-bold tracking-wider text-gray-300 uppercase">{projectName}</h1>
         </div>
         <Link 
           href="/library" 
-          className="text-[10px] font-mono font-bold tracking-wider text-gray-500 hover:text-white px-2.5 py-1 bg-slate-900 border border-white/[0.04] rounded transition"
+          className="text-[10px] font-mono font-bold tracking-wider text-gray-400 hover:text-gray-100 px-3 py-1.5 bg-background-elevated hover:bg-background-deep border border-border hover:border-border-strong rounded-lg transition"
         >
-          ЗАКРЫТЬ СТУДИЮ [ESC]
+          ✕ Закрыть
         </Link>
       </header>
       
-      {/* Главная панель транспорта */}
+      {/* Transport */}
       <TransportPanel />
       
-      <div className="flex flex-1 overflow-hidden">
-        <MixerPanel />
-        <AudioWorkspace />
+      {/* Main workspace */}
+      <div className="flex flex-1 overflow-hidden relative">
+        <MixerPanel scrollRef={mixerScrollRef} onScroll={handleMixerScroll} />
+        <AudioWorkspace scrollRef={workspaceScrollRef} onScroll={handleWorkspaceScroll} />
       </div>
     </div>
   );

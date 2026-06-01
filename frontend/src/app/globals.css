@@ -2,8 +2,124 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --background: #090D16;
+  --background-surface: #121824;
+  --background-elevated: #1e293b;
+  --background-deep: #05070b;
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.18);
+}
+
+:root.light {
+  --background: #f1f5f9;            /* Светло-серый фон */
+  --background-surface: #ffffff;    /* Контрастные белые карточки */
+  --background-elevated: #e2e8f0;   /* Серый фон для кнопок */
+  --background-deep: #cbd5e1;       /* Темно-серый для акцентов/инпутов */
+  --text-primary: #0f172a;          /* Черный текст */
+  --text-secondary: #334155;        /* Темно-серый текст */
+  --text-muted: #64748b;            /* Серый текст */
+  --border: rgba(15, 23, 42, 0.12);  /* Видимая граница */
+  --border-strong: rgba(15, 23, 42, 0.25); /* Четкая контрастная граница */
+}
+
 @layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--border-strong);
+  }
+
+  html {
+    @apply antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
-    @apply bg-background text-white antialiased;
+    @apply bg-background text-white antialiased overflow-x-hidden;
+    color: var(--text-primary);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  ::selection {
+    @apply bg-primary/30 text-white;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary/40 ring-offset-0;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 30px var(--background-deep) inset !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    caret-color: var(--text-primary);
+  }
+}
+
+@layer utilities {
+  .animate-fade-in { animation: fade-in 0.3s ease-out; }
+  .animate-fade-in-up { animation: fade-in-up 0.35s ease-out; }
+  .animate-fade-in-down { animation: fade-in-down 0.3s ease-out; }
+  .animate-fade-in-scale { animation: fade-in-scale 0.3s ease-out; }
+  .animate-slide-in-right { animation: slide-in-right 0.3s ease-out; }
+  .animate-slide-in-left { animation: slide-in-left 0.3s ease-out; }
+
+  .skeleton {
+    @apply rounded-lg animate-pulse relative overflow-hidden;
+    background-color: var(--border);
+  }
+
+  .glass {
+    background-color: var(--background-surface);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+  }
+
+  .glass-strong {
+    background-color: var(--background-surface);
+    backdrop-filter: blur(40px);
+    border: 1px solid var(--border-strong);
+    @apply shadow-xl;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary;
+  }
+}
+
+@layer components {
+  .card-hover {
+    @apply transition-all duration-300;
+    border-color: var(--border);
+    &:hover {
+      border-color: var(--border-strong);
+      background-color: var(--background-surface);
+      @apply shadow-lg;
+    }
   }
 }

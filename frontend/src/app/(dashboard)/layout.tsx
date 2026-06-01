@@ -19,8 +19,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!_hasHydrated || !isAuth) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background text-primary">
-        <span className="animate-pulse">Проверка сессии...</span>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+          <span className="text-[10px] font-mono text-gray-600 uppercase tracking-widest">Проверка сессии...</span>
+        </div>
       </div>
     );
   }

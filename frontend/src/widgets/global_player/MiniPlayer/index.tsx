@@ -44,52 +44,56 @@ export const MiniPlayer = () => {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-20 bg-[#05070b]/90 border-t border-white/[0.06] backdrop-blur-xl flex items-center justify-between px-8 z-50 select-none">
+    <div className="fixed bottom-0 left-0 right-0 h-20 bg-background-deep/95 border-t border-white/[0.06] backdrop-blur-2xl flex items-center justify-between px-6 z-50 select-none">
       <AudioPlayer />
       
-      {/* Левый блок: Информация */}
-      <div className="flex items-center gap-4 w-1/4">
-        <div className="w-10 h-10 rounded-lg bg-slate-900 border border-white/[0.06] flex items-center justify-center">
-          <svg className="w-5 h-5 text-primary animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+      {/* Left: Track Info */}
+      <div className="flex items-center gap-3 w-1/4">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-white/[0.06] flex items-center justify-center flex-shrink-0">
+          <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66A2.25 2.25 0 0018 12.553v-3.75" />
           </svg>
         </div>
-        <div className="flex flex-col overflow-hidden">
+        <div className="flex flex-col overflow-hidden min-w-0">
           <span className="text-xs font-bold text-gray-200 truncate">{currentTrack.title}</span>
-          <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest truncate">
-            {currentTrack.genre || 'GENRE_NOT_DEFINED'}
+          <span className="text-[10px] font-mono text-gray-600 uppercase tracking-wider truncate">
+            {currentTrack.genre || 'Без жанра'}
           </span>
         </div>
       </div>
 
-      {/* Центральный блок: Управление и перемотка */}
-      <div className="flex flex-col items-center w-2/4 gap-2">
+      {/* Center: Controls + Progress */}
+      <div className="flex flex-col items-center w-2/4 gap-1.5">
         <PlaybackControls />
         
-        <div className="flex items-center gap-4 w-full max-w-xl">
-          <span className="text-[10px] font-mono text-gray-500 w-10 text-right leading-none">
+        <div className="flex items-center gap-3 w-full max-w-xl">
+          <span className="text-[10px] font-mono text-gray-600 w-10 text-right leading-none tabular-nums">
             {formatTime(currentTime)}
           </span>
           <div 
             ref={progressBarRef}
             onClick={handleScrub}
-            className="flex-1 h-3 flex items-center cursor-pointer group"
+            className="flex-1 h-4 flex items-center cursor-pointer group"
           >
-            <div className="w-full h-1 bg-slate-900 border border-white/[0.02] rounded-full relative overflow-hidden">
+            <div className="w-full h-1 bg-slate-800/80 border border-white/[0.02] rounded-full relative overflow-hidden group-hover:h-1.5 transition-all">
               <div 
-                className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-100" 
+                className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-75" 
                 style={{ width: `${progressPercent}%` }} 
+              />
+              <div 
+                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg border-2 border-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ left: `calc(${progressPercent}% - 6px)` }}
               />
             </div>
           </div>
-          <span className="text-[10px] font-mono text-gray-500 w-10 text-left leading-none">
+          <span className="text-[10px] font-mono text-gray-600 w-10 text-left leading-none tabular-nums">
             {formatTime(duration)}
           </span>
         </div>
       </div>
 
-      {/* Правый блок: Громкость (Лишняя рамка убрана, прямое выравнивание) */}
-      <div className="flex justify-end items-center w-1/4 pr-2">
+      {/* Right: Volume */}
+      <div className="flex justify-end items-center w-1/4">
         <VolumeSlider />
       </div>
     </div>

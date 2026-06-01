@@ -19,12 +19,14 @@ def test_audio_chunking_and_crossfading():
     mock_audio_tensor.to.return_value = mock_audio_tensor
     
     mock_sources = MagicMock()
-    mock_sources.squeeze.return_value.cpu.return_value = "mock_result"
+    mock_result = MagicMock()
+    mock_result.shape = (4, 2, 44100)
+    mock_sources.squeeze.return_value.cpu.return_value = mock_result
     
     with patch("src.ml_engine.optimizer.apply_model", return_value=mock_sources) as mock_apply:
         result = apply_inference_optimized(mock_model, mock_audio_tensor, shifts=1)
         
-        mock_audio_tensor.dim.assert_called_once()
+        assert mock_audio_tensor.dim.call_count == 2
         mock_audio_tensor.unsqueeze.assert_called_with(0)
         mock_audio_tensor.to.assert_called_with("cpu")
         mock_apply.assert_called_once_with(
@@ -36,4 +38,4 @@ def test_audio_chunking_and_crossfading():
             progress=False
         )
         mock_sources.squeeze.assert_called_once_with(0)
-        assert result == "mock_result"
+        assert result == mock_result

@@ -36,6 +36,43 @@ test.describe('Global Audio Player Persistence', () => {
       route.fulfill({ json: [] })
     );
 
+    await page.addInitScript(() => {
+      const originalAddEventListener = window.EventTarget.prototype.addEventListener;
+      
+      window.EventTarget.prototype.addEventListener = function(type, listener, options) {
+        if (type === 'error' && this instanceof HTMLMediaElement) {
+          return;
+        }
+        return originalAddEventListener.call(this, type, listener, options);
+      };
+
+      Object.defineProperty(window.HTMLMediaElement.prototype, 'onerror', {
+        set(val) { /* игнорируем */ },
+        get() { return null; },
+        configurable: true
+      });
+
+      window.HTMLMediaElement.prototype.play = async function() {
+        return Promise.resolve();
+      };
+      window.HTMLMediaElement.prototype.load = function() {};
+      
+      Object.defineProperty(window.HTMLMediaElement.prototype, 'src', {
+        get() {
+          return this._mockSrc || '';
+        },
+        set(value) {
+          this._mockSrc = value;
+          setTimeout(() => {
+            const event = new Event('loadedmetadata');
+            this.dispatchEvent(event);
+          }, 50);
+        },
+        configurable: true,
+        enumerable: true
+      });
+    });
+
     await page.goto('http://localhost:3000/login');
     await page.evaluate(() => {
       localStorage.setItem('auth-storage', JSON.stringify({ 

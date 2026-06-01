@@ -26,10 +26,22 @@ export const SaveToLibraryBtn: React.FC<SaveToLibraryBtnProps> = ({ trackId, isS
 
   return (
     <Button 
-      variant="secondary" 
-      className="text-xs py-1"
+      variant={isCompleted ? 'ghost' : 'secondary'}
+      size="sm"
+      className={isCompleted ? 'text-accent-green border-accent-green/20' : ''}
       onClick={() => mutation.mutate()}
       disabled={isCompleted || mutation.isPending}
+      leftIcon={
+        isCompleted ? (
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        ) : (
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+        )
+      }
     >
       {isCompleted ? 'Сохранено' : 'В библиотеку'}
     </Button>

@@ -34,4 +34,4 @@ async def test_task_orchestration(db_session, setup_auth_user):
 
         assert task.status == TaskStatus.pending
         assert task.celery_task_id == "celery_task_123"
-        mock_send_task.assert_called_once_with("process_audio", args=[str(task.id), "orig/test.mp3", str(file_obj.id)])
+        mock_send_task.assert_called_once_with("process_audio", args=[str(task.id), "orig/test.mp3", str(file_obj.id), model_config])

@@ -65,13 +65,19 @@ export const ExportSession = () => {
   };
 
   return (
-    <Button 
-      variant="primary" 
-      onClick={handleExport} 
+    <Button
+      variant="primary"
+      size="sm"
+      onClick={handleExport}
       isLoading={isExporting}
       disabled={tracks.length === 0 || !hasActiveTracks}
+      rightIcon={
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 6m0 0l-4.5 4.5M12 6v13.5" />
+        </svg>
+      }
     >
-      Экспорт (Render)
+      {isExporting ? 'Сведение...' : 'Экспорт'}
     </Button>
   );
 };

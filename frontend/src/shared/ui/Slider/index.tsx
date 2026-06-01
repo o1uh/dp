@@ -17,46 +17,40 @@ export const Slider: React.FC<SliderProps> = ({
   className = '', 
   ...props 
 }) => {
+  const pct = ((value - min) / (max - min)) * 100;
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(Number(e.target.value));
   };
 
   return (
-    <input
-      type="range"
-      min={min}
-      max={max}
-      step={step}
-      value={value}
-      onChange={handleChange}
-      className={`
-        w-full h-1 bg-slate-800 rounded-full appearance-none cursor-pointer outline-none transition-all duration-150
-        
-        /* Стилизация ползунка (Thumb) под Webkit */
-        [&::-webkit-slider-thumb]:appearance-none 
-        [&::-webkit-slider-thumb]:w-3 
-        [&::-webkit-slider-thumb]:h-3 
-        [&::-webkit-slider-thumb]:rounded-full 
-        [&::-webkit-slider-thumb]:bg-primary 
-        [&::-webkit-slider-thumb]:transition-all 
-        [&::-webkit-slider-thumb]:duration-150
-        hover:[&::-webkit-slider-thumb]:scale-125 
-        hover:[&::-webkit-slider-thumb]:bg-white
-        
-        /* Стилизация ползунка (Thumb) под Firefox */
-        [&::-moz-range-thumb]:border-0 
-        [&::-moz-range-thumb]:w-3 
-        [&::-moz-range-thumb]:h-3 
-        [&::-moz-range-thumb]:rounded-full 
-        [&::-moz-range-thumb]:bg-primary 
-        [&::-moz-range-thumb]:transition-all 
-        [&::-moz-range-thumb]:duration-150
-        hover:[&::-moz-range-thumb]:scale-125 
-        hover:[&::-moz-range-thumb]:bg-white
-        
-        ${className}
-      `}
-      {...props}
-    />
+    <div className={`relative w-full h-5 flex items-center ${className}`}>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={handleChange}
+        className="
+          absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10
+        "
+        {...props}
+      />
+      {/* Track Background */}
+      <div className="w-full h-1 bg-background-deep rounded-full overflow-hidden">
+        {/* Fill */}
+        <div 
+          className="h-full bg-gradient-to-r from-primary to-primary-light rounded-full transition-all duration-75"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {/* Thumb visual */}
+      <div 
+        className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg border-2 border-primary 
+                   pointer-events-none transition-transform duration-100 group-hover:scale-125"
+        style={{ left: `calc(${pct}% - 7px)` }}
+      />
+    </div>
   );
 };

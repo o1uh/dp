@@ -24,7 +24,7 @@ async def test_deduplication_logic(db_session, setup_auth_user):
     task_obj = ProcessingTask(
         user_id=user_id,
         file_id=file_obj.id,
-        model_config={"model": "HT_Demucs_v4"},
+        model_config={"model": "htdemucs"},
         status=TaskStatus.completed
     )
     db_session.add(task_obj)
