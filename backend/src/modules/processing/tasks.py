@@ -40,16 +40,23 @@ def process_audio(self, task_id: str, s3_key_original: str, file_id: str, model_
     model_config = model_config or {}
     parent_task_id = model_config.get("parent_task_id")
 
-    env_mock = os.getenv("MOCK_ML_PROCESSING", "False").lower() in ("true", "1", "yes")
+    is_mock_mode = model_config.get("is_mock_mode", False)
 
-    try:
-        r_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-        redis_mock = r_client.get("MOCK_ML_PROCESSING") == "True"
-    except Exception as re:
-        logger.warning(f"Failed to fetch mock mode from Redis: {re}. Falling back to False.")
+    if not is_mock_mode:
+        env_mock = os.getenv("MOCK_ML_PROCESSING", "False").lower() in ("true", "1", "yes")
         redis_mock = False
+        try:
+            r_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+            val = r_client.get("MOCK_ML_PROCESSING")
+            if isinstance(val, bytes):
+                val = val.decode("utf-8")
+            redis_mock = (val == "True")
+        except Exception as re:
+            logger.warning(f"[WORKER] Failed to fetch mock mode from Redis: {re}. Falling back to False.")
+            redis_mock = False
+        is_mock_mode = env_mock or redis_mock
 
-    is_mock_mode = env_mock or redis_mock
+    logger.info(f"[WORKER] Final mock mode state for Task ID {task_id}: {is_mock_mode}")
 
     logger.info(f"Sending processing start webhook events for task: {task_id}")
     _send_webhook({
@@ -289,9 +296,22 @@ def process_audio(self, task_id: str, s3_key_original: str, file_id: str, model_
 
 
 @celery_app.task(bind=True, name="render_session", acks_late=True)
-def render_session(self, task_id: str, track_configs: list, file_id: str):
+def render_session(self, task_id: str, track_configs: list, file_id: str, model_config: dict = None):
     logger.info(f"Celery render_session task started. DB Task ID: {task_id}, Config entries count: {len(track_configs)}")
     
+    model_config = model_config or {}
+    is_mock_mode = model_config.get("is_mock_mode", False)
+
+    if not is_mock_mode:
+        env_mock = os.getenv("MOCK_ML_PROCESSING", "False").lower() in ("true", "1", "yes")
+        try:
+            r_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+            val = r_client.get("MOCK_ML_PROCESSING")
+            redis_mock = (val == "True") if val else False
+        except Exception:
+            redis_mock = False
+        is_mock_mode = env_mock or redis_mock
+
     _send_webhook({
         "task_id": task_id,
         "file_id": file_id,
@@ -312,32 +332,50 @@ def render_session(self, task_id: str, track_configs: list, file_id: str):
     }
 
     try:
-        logger.info(f"Compiling ZIP compression package output stream onto target path: {output_file}")
-        with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for idx, config in enumerate(track_configs):
-                s3_key = config["s3_key"]
-                ext = Path(s3_key).suffix or ".audio"
-                local_path = temp_dir / f"track_{idx}{ext}"
-                
-                logger.info(f"Downloading track index {idx} from key '{s3_key}'...")
-                download_file(BUCKET_NAME, s3_key, local_path)
-                
-                stem_name = Path(s3_key).stem or f"track_{idx}"
-                logger.info(f"Packing file '{stem_name}{ext}' into archive compilation...")
-                zipf.write(local_path, arcname=f"{stem_name}{ext}")
-
         s3_key_zip = f"renders/{file_id}/stems.zip"
-        logger.info(f"Uploading compiled archive file package to key: {s3_key_zip}")
-        upload_file(BUCKET_NAME, output_file, s3_key_zip, "application/zip")
-        
-        payload["stems"].append({
-            "stem_class": "stems_archive",
-            "s3_key_flac": s3_key_zip,
-            "s3_key_mp3": s3_key_zip,
-            "file_size_bytes": output_file.stat().st_size,
-            "model_version": "zip_package"
-        })
-        logger.info("ZIP package compression pipeline successfully completed.")
+
+        if is_mock_mode:
+            logger.info("[MOCK MODE] Запущена симуляция рендера сессии...")
+            time.sleep(1.0)
+            output_file.write_bytes(b"\x00\x00\x00\x00")
+            
+            logger.info(f"Uploading compiled archive file package to key: {s3_key_zip}")
+            upload_file(BUCKET_NAME, output_file, s3_key_zip, "application/zip")
+            
+            payload["stems"].append({
+                "stem_class": "stems_archive",
+                "s3_key_flac": s3_key_zip,
+                "s3_key_mp3": s3_key_zip,
+                "file_size_bytes": 4,
+                "model_version": "zip_package"
+            })
+            logger.info("ZIP package compression pipeline successfully completed.")
+        else:
+            logger.info(f"Compiling ZIP compression package output stream onto target path: {output_file}")
+            with zipfile.ZipFile(output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for idx, config in enumerate(track_configs):
+                    s3_key = config["s3_key"]
+                    ext = Path(s3_key).suffix or ".audio"
+                    local_path = temp_dir / f"track_{idx}{ext}"
+                    
+                    logger.info(f"Downloading track index {idx} from key '{s3_key}'...")
+                    download_file(BUCKET_NAME, s3_key, local_path)
+                    
+                    stem_name = Path(s3_key).stem or f"track_{idx}"
+                    logger.info(f"Packing file '{stem_name}{ext}' into archive compilation...")
+                    zipf.write(local_path, arcname=f"{stem_name}{ext}")
+
+            logger.info(f"Uploading compiled archive file package to key: {s3_key_zip}")
+            upload_file(BUCKET_NAME, output_file, s3_key_zip, "application/zip")
+            
+            payload["stems"].append({
+                "stem_class": "stems_archive",
+                "s3_key_flac": s3_key_zip,
+                "s3_key_mp3": s3_key_zip,
+                "file_size_bytes": output_file.stat().st_size,
+                "model_version": "zip_package"
+            })
+            logger.info("ZIP package compression pipeline successfully completed.")
 
     except Exception as e:
         logger.error(f"Render engine task failed with error trace: {e}", exc_info=True)

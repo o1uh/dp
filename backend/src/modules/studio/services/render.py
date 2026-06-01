@@ -1,4 +1,5 @@
 import uuid
+import os
 from src.infrastructure.db.uow import UnitOfWork
 from src.modules.studio.repositories import StudioRepository
 from src.modules.storage.repositories import FileRepository
@@ -7,10 +8,27 @@ from src.modules.storage.models import File
 from src.core.worker.celery_app import celery_app
 from src.core.exceptions import NotFoundError, BusinessRuleError, AccessDeniedError
 from src.common.enums import FileProcessingStatus
+from src.infrastructure.redis.client import get_redis_client
 from src.core.logger import logger
 
 async def initiate_render(user_id: str, session_id: str) -> str:
     logger.info(f"Initiating DAW session mixdown compilation. User: {user_id}, Session: {session_id}")
+    
+    env_mock = os.getenv("MOCK_ML_PROCESSING", "False").lower() in ("true", "1", "yes")
+    redis_mock = False
+    r_client = None
+    try:
+        r_client = get_redis_client()
+        val = await r_client.get("MOCK_ML_PROCESSING")
+        redis_mock = (val == "True")
+    except Exception as e:
+        logger.warning(f"[RENDER] Failed to read mock mode from Redis: {e}")
+    finally:
+        if r_client:
+            await r_client.close()
+
+    is_mock_mode = env_mock or redis_mock
+
     async with UnitOfWork() as uow:
         studio_repo = StudioRepository(uow.session)
         
@@ -94,11 +112,16 @@ async def initiate_render(user_id: str, session_id: str) -> str:
         
         session.exported_file_id = mix_file_id
 
+        # Формируем конфигурацию задачи с закрепленным флагом симуляции
+        model_config = {"type": "render", "session_id": session_id}
+        if is_mock_mode:
+            model_config["is_mock_mode"] = True
+
         logger.info("Registering processing task container in database...")
         task = ProcessingTask(
             user_id=uuid.UUID(user_id),
             file_id=mix_file_id,
-            model_config={"type": "render", "session_id": session_id}
+            model_config=model_config
         )
         uow.session.add(task)
         await uow.session.flush()
@@ -107,7 +130,7 @@ async def initiate_render(user_id: str, session_id: str) -> str:
         logger.info(f"Forwarding render task parameters to Celery worker queue 'render_session'. Task ID: {task.id}")
         celery_task = celery_app.send_task(
             "render_session",
-            args=[str(task.id), track_configs, str(mix_file_id)]
+            args=[str(task.id), track_configs, str(mix_file_id), task.model_config]
         )
         
         logger.info(f"Celery task successfully queued with Job ID: {celery_task.id}")
