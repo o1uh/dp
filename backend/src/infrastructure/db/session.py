@@ -5,8 +5,8 @@ from src.core.logger import logger
 logger.info(f"Configuring database engine. Target URL: {settings.DATABASE_URL}, Pool Size: 20, Max Overflow: 10")
 engine = create_async_engine(
     settings.DATABASE_URL,
-    pool_size=20,
-    max_overflow=10,
+    pool_size=100,
+    max_overflow=50,
     echo=False,
 )
 

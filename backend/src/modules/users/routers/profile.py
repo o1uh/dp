@@ -7,29 +7,31 @@ from src.modules.rbac.repositories import RoleRepository
 from src.infrastructure.db.session import async_session_maker
 from src.modules.library.models import Track
 from src.modules.storage.models import File 
-from sqlalchemy import func, select 
+from sqlalchemy import func, select
+from src.infrastructure.db.session import get_session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/me", tags=["Profile"])
 
 @router.get("", response_model=UserProfileResponse)
-async def get_profile(current_user: User = Depends(get_current_user)):
+async def get_profile(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
     role_name = None
     if current_user.role_id:
-        async with async_session_maker() as session:
-            repo = RoleRepository(session)
-            role = await repo.get_by_id(str(current_user.role_id))
-            if role:
-                role_name = role.name
+        repo = RoleRepository(session) 
+        role = await repo.get_by_id(str(current_user.role_id))
+        if role:
+            role_name = role.name
 
-    storage_used = 0
-    async with async_session_maker() as session:
-        stmt = (
-            select(func.sum(File.file_size_bytes))
-            .join(Track, Track.file_id == File.id)
-            .where(Track.user_id == current_user.id, Track.deleted_at.is_(None))
-        )
-        result = await session.execute(stmt)
-        storage_used = result.scalar() or 0
+    stmt = (
+        select(func.sum(File.file_size_bytes))
+        .join(Track, Track.file_id == File.id)
+        .where(Track.user_id == current_user.id, Track.deleted_at.is_(None))
+    )
+    result = await session.execute(stmt)
+    storage_used = result.scalar() or 0
 
     return UserProfileResponse(
         id=str(current_user.id),
@@ -39,7 +41,7 @@ async def get_profile(current_user: User = Depends(get_current_user)):
         bio=current_user.bio,
         profile_specialization=current_user.profile_specialization,
         role_name=role_name,
-        storage_used_bytes=storage_used # Возвращаем рассчитанный объем
+        storage_used_bytes=storage_used
     )
 
 @router.put("", status_code=status.HTTP_200_OK)

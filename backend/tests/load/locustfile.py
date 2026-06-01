@@ -21,7 +21,7 @@ class ProcessingUser(HttpUser):
 
         payload = {
             "file_id": random.choice(self.file_ids),
-            "model_config": {"model": "HT_Demucs_v4"}
+            "config": {"model": "HT_Demucs_v4"}
         }
         
         with self.client.post("/api/tasks", json=payload, catch_response=True) as response:
