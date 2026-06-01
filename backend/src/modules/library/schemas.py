@@ -10,9 +10,16 @@ class TrackUpdateDTO(BaseModel):
     tags: Optional[List[str]] = None
     visibility: Optional[VisibilityStatus] = None
 
+class ProcessedModelInfo(BaseModel):
+    task_id: str
+    model_name: str
+    stem_count: int
+    created_at: datetime
+
 class TrackResponse(BaseModel):
     id: str
     user_id: str
+    file_id: Optional[str] = None
     title: str
     original_filename: Optional[str]
     genre: Optional[str]
@@ -24,6 +31,8 @@ class TrackResponse(BaseModel):
     downloads_count: int
     created_at: datetime
     deleted_at: Optional[datetime] = None
+    processed_models: List[ProcessedModelInfo] = []
+    is_processing: bool = False
 
 class TrackListResponse(BaseModel):
     items: List[TrackResponse]

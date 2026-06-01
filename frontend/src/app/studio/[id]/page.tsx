@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useState, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUserStore } from '@/entities/user/model/store';
 import { StudioView } from '@/views/studio';
 
 export default function StudioPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const taskId = searchParams.get('task_id');
+  
   const { isAuth, _hasHydrated } = useUserStore();
   const [mounted, setMounted] = useState(false);
 
@@ -29,5 +32,5 @@ export default function StudioPage({ params }: { params: Promise<{ id: string }>
     );
   }
 
-  return <StudioView sessionId={id} />;
+  return <StudioView sessionId={id} taskId={taskId} />;
 }

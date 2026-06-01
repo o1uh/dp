@@ -12,7 +12,6 @@ export const HomeView = () => {
     setIsClient(true);
   }, []);
 
-  // Если состояние хранилища десериализовано и пользователь авторизован, перенаправляем в библиотеку
   const isUserAuthenticated = isClient && _hasHydrated && isAuth;
   const targetLink = isUserAuthenticated ? '/library' : '/register';
   const buttonText = isUserAuthenticated ? 'В личный кабинет' : 'Начать декомпозицию';
@@ -47,9 +46,17 @@ export const HomeView = () => {
 
       {/* Hero-секция */}
       <main className="relative z-10 flex-1 max-w-5xl mx-auto w-full flex flex-col items-center justify-center text-center px-6 py-20">
-        <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/[0.03] border border-white/[0.08] rounded-full mb-6">
-          <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
-          <span className="text-xs text-gray-300 font-medium tracking-wide uppercase">Demucs v4 Neural Engine</span>
+        
+        {/* Два информационных поля вверху */}
+        <div className="flex flex-wrap justify-center gap-3 mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/[0.03] border border-white/[0.08] rounded-full">
+            <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
+            <span className="text-xs text-gray-300 font-medium tracking-wide uppercase">Demucs v4 Neural Engine</span>
+          </div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-secondary/10 border border-secondary/30 rounded-full shadow-glow">
+            <span className="w-2 h-2 rounded-full bg-accent-yellow animate-pulse" />
+            <span className="text-xs text-secondary font-bold tracking-wide uppercase">Cascade Guitar Separation v4</span>
+          </div>
         </div>
 
         <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-6 leading-[1.1]">
@@ -60,7 +67,7 @@ export const HomeView = () => {
         </h1>
 
         <p className="text-lg md:text-xl text-gray-400 max-w-2xl mb-10 leading-relaxed">
-          Профессиональный инструмент декомпозиции аудио. Извлекайте вокал, ударные, бас и сторонние инструменты с хирургической точностью при помощи нейросетевых алгоритмов.
+          Профессиональный инструмент декомпозиции аудио. Извлекайте вокал, ударные, бас, гитару и сторонние инструменты с хирургической точностью при помощи нейросетевых алгоритмов.
         </p>
 
         <div className="flex justify-center items-center w-full max-w-sm">
@@ -72,9 +79,9 @@ export const HomeView = () => {
           </Link>
         </div>
 
-        {/* Плейсхолдер UI */}
+        {/* Плейсхолдер UI с 5 дорожками */}
         <div className="w-full mt-20 p-2 bg-white/[0.01] border border-white/[0.04] rounded-2xl shadow-2xl backdrop-blur-3xl">
-          <div className="bg-background-surface rounded-xl overflow-hidden aspect-[16/8] border border-white/[0.04] flex flex-col justify-between p-4">
+          <div className="bg-background-surface rounded-xl overflow-hidden aspect-[16/9] border border-white/[0.04] flex flex-col justify-between p-4">
             <div className="flex items-center justify-between border-b border-white/[0.04] pb-3">
               <div className="flex gap-1.5">
                 <span className="w-3 h-3 rounded-full bg-red-500/30" />
@@ -86,14 +93,17 @@ export const HomeView = () => {
             
             <div className="flex flex-col gap-3 my-6">
               {[
-                { label: 'Vocals', color: 'from-purple-500/30', pct: '75%' },
-                { label: 'Drums', color: 'from-blue-500/30', pct: '45%' },
-                { label: 'Bass', color: 'from-pink-500/30', pct: '60%' },
+                { label: 'Vocals', color: 'from-pink-500/30', pct: '75%', val: 'Vocals' },
+                { label: 'Drums', color: 'from-cyan-500/30', pct: '45%', val: 'Drums' },
+                { label: 'Bass', color: 'from-emerald-500/30', pct: '60%', val: 'Bass' },
+                { label: 'Guitar', color: 'from-amber-500/30', pct: '80%', val: 'Guitar (Premium)' },
+                { label: 'Other', color: 'from-violet-500/30', pct: '30%', val: 'Other (Cleaned)' },
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-4">
-                  <span className="w-16 text-left text-[11px] font-mono text-gray-400 uppercase tracking-wider">{item.label}</span>
-                  <div className="flex-1 h-8 bg-white/[0.02] rounded border border-white/[0.04] relative overflow-hidden">
+                  <span className="w-24 text-left text-[11px] font-mono text-gray-400 uppercase tracking-wider">{item.label}</span>
+                  <div className="flex-1 h-8 bg-white/[0.02] rounded border border-white/[0.04] relative overflow-hidden flex items-center pl-3">
                     <div className={`absolute top-0 bottom-0 left-0 bg-gradient-to-r ${item.color} to-transparent`} style={{ width: item.pct }} />
+                    <span className="text-[10px] font-mono font-bold text-gray-300 z-10 relative">{item.val}</span>
                   </div>
                 </div>
               ))}

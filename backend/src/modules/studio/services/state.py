@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 from sqlalchemy import select
 from src.infrastructure.db.uow import UnitOfWork
 from src.modules.studio.schemas import SessionSaveRequest, SessionLoadResponse, StudioTrackDTO
@@ -6,8 +7,9 @@ from src.modules.studio.models import StudioSession, StudioSessionTrack
 from src.modules.studio.repositories import StudioRepository
 from src.modules.library.repositories import LibraryRepository
 from src.modules.library.models import UserStem
-from src.modules.processing.models import Stem
+from src.modules.processing.models import Stem, ProcessingTask
 from src.modules.storage.models import File
+from src.common.enums import TaskStatus
 from src.core.exceptions import AccessDeniedError, NotFoundError, BusinessRuleError
 
 async def save_session_state(user_id: str, session_id: str, data: SessionSaveRequest) -> str:
@@ -68,7 +70,7 @@ async def save_session_state(user_id: str, session_id: str, data: SessionSaveReq
         await uow.commit()
         return str(session.id)
 
-async def load_session_state(user_id: str, session_id: str) -> SessionLoadResponse:
+async def load_session_state(user_id: str, session_id: str, task_id: Optional[str] = None) -> SessionLoadResponse:
     try:
         session_uuid = uuid.UUID(session_id)
     except ValueError:
@@ -99,13 +101,20 @@ async def load_session_state(user_id: str, session_id: str) -> SessionLoadRespon
                         UserStem.user_id == uuid.UUID(user_id)
                     )
                     user_stem = (await uow.session.execute(stmt)).scalar_one_or_none()
+                    if not user_stem:
+                        stmt_track = select(Track).where(Track.file_id == stem_obj.file_id, Track.user_id == uuid.UUID(user_id)).limit(1)
+                        track_obj = (await uow.session.execute(stmt_track)).scalar_one_or_none()
+                        if track_obj:
+                            user_stem = UserStem(
+                                user_id=uuid.UUID(user_id),
+                                stem_id=t.stem_id,
+                                track_id=track_obj.id
+                            )
+                            uow.session.add(user_stem)
+                            await uow.session.flush()
+                    
                     if user_stem:
                         logical_stem_id = str(user_stem.id)
-                    else:
-                        stmt_pub = select(UserStem).where(UserStem.stem_id == t.stem_id).limit(1)
-                        user_stem_pub = (await uow.session.execute(stmt_pub)).scalar_one_or_none()
-                        if user_stem_pub:
-                            logical_stem_id = str(user_stem_pub.id)
                 
                 elif t.file_id:
                     file_obj = await uow.session.get(File, t.file_id)
@@ -144,19 +153,70 @@ async def load_session_state(user_id: str, session_id: str) -> SessionLoadRespon
         if str(track.user_id) != user_id:
             raise AccessDeniedError("Access denied")
 
-        stmt = select(UserStem).where(UserStem.track_id == track.id)
-        stems = (await uow.session.execute(stmt)).scalars().all()
+        target_task_uuid = None
+        if task_id:
+            target_task_uuid = uuid.UUID(task_id)
+        else:
+            stmt_latest = (
+                select(ProcessingTask.id)
+                .where(
+                    ProcessingTask.file_id == track.file_id, 
+                    ProcessingTask.status == TaskStatus.completed,
+                    ProcessingTask.user_id == uuid.UUID(user_id)
+                )
+                .order_by(ProcessingTask.created_at.desc())
+                .limit(1)
+            )
+            target_task_uuid = (await uow.session.execute(stmt_latest)).scalar_one_or_none()
+
+        if not target_task_uuid:
+            return SessionLoadResponse(
+                id=session_id, 
+                project_name=f"Mix: {track.title}",
+                global_settings={},
+                tracks=[]
+            )
+
+        stmt_task = select(ProcessingTask).where(ProcessingTask.id == target_task_uuid)
+        task_obj = (await uow.session.execute(stmt_task)).scalar_one_or_none()
         
+        model_name = "htdemucs"
+        if task_obj and task_obj.model_config:
+            model_name = task_obj.model_config.get("model", "htdemucs")
+
+        stmt_us = select(UserStem).where(UserStem.track_id == track.id)
+        user_stems = (await uow.session.execute(stmt_us)).scalars().all()
+        user_stem_ids = [us.stem_id for us in user_stems]
+
+        all_user_stems = []
+        if user_stem_ids:
+            stmt_stems = select(Stem).where(Stem.id.in_(user_stem_ids))
+            all_user_stems = (await uow.session.execute(stmt_stems)).scalars().all()
+
+        stems_to_load = []
+        if model_name == "cascade_guitar":
+            for s in all_user_stems:
+                if s.stem_class in ["guitar", "other"]:
+                    if s.model_version != "HT_Demucs_v4":
+                        stems_to_load.append(s)
+                else:
+                    if s.model_version == "HT_Demucs_v4":
+                        stems_to_load.append(s)
+        else:
+                if s.model_version == "HT_Demucs_v4":
+                    stems_to_load.append(s)
+
         track_dtos = []
-        for idx, user_stem in enumerate(stems):
-            stem_obj = await uow.session.get(Stem, user_stem.stem_id)
-            track_name = stem_obj.stem_class.capitalize() if stem_obj else f"Дорожка {idx + 1}"
-            
+        for idx, stem_obj in enumerate(stems_to_load):
+            user_stem_obj = next((us for us in user_stems if us.stem_id == stem_obj.id), None)
+            if not user_stem_obj:
+                continue
+
             track_dtos.append(
                 StudioTrackDTO(
                     id=str(uuid.uuid4()), 
-                    name=track_name,
-                    stem_id=str(user_stem.id),
+                    name=stem_obj.stem_class.capitalize(),
+                    stem_id=str(user_stem_obj.id),
                     file_id=None,
                     track_index=idx,
                     volume=1.0,

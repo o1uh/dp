@@ -1,9 +1,17 @@
 import { apiClient } from '@/shared/api/rest';
 import { PaginatedResponse } from '@/shared/api/types';
 
+export interface ProcessedModelInfo {
+  task_id: string;
+  model_name: string;
+  stem_count: number;
+  created_at: string;
+}
+
 export interface Track {
   id: string;
   user_id?: string;
+  file_id?: string;
   title: string;
   original_filename?: string;
   genre?: string;
@@ -15,6 +23,8 @@ export interface Track {
   downloads_count: number;
   created_at: string;
   deleted_at?: string | null;
+  processed_models?: ProcessedModelInfo[];
+  is_processing?: boolean;
 }
 
 export const trackApi = {

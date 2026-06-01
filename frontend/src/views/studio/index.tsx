@@ -14,13 +14,13 @@ import { stemApi } from '@/entities/stem/api';
 import { trackApi } from '@/entities/track/api';
 import { getAudioContext } from '@/shared/lib/web-audio/context';
 
-export const StudioView = ({ sessionId }: { sessionId: string }) => {
+export const StudioView = ({ sessionId, taskId }: { sessionId: string; taskId?: string | null }) => {
   const { initSession, projectName, setTracks, setTrackBuffer } = useStudioSessionStore();
   const stopSession = useStudioSessionStore(state => state.stop);
   const pauseGlobalPlayer = useAudioQueueStore(state => state.pause);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { isAuth, _hasHydrated, logout } = useUserStore();
+  const { isAuth, _hasHydrated } = useUserStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
 
     const loadData = async () => {
       try {
-        const data = await studioApi.loadSession(sessionId);
+        const data = await studioApi.loadSession(sessionId, taskId);
         if (!isMounted) return;
 
         initSession(sessionId, data.project_name);
@@ -89,7 +89,7 @@ export const StudioView = ({ sessionId }: { sessionId: string }) => {
       isMounted = false;
       stopSession();
     };
-  }, [sessionId, initSession, pauseGlobalPlayer, setTracks, setTrackBuffer, stopSession, isAuth, router]);
+  }, [sessionId, taskId, initSession, pauseGlobalPlayer, setTracks, setTrackBuffer, stopSession, isAuth, router]);
 
   if (!_hasHydrated || !isAuth) {
     return (

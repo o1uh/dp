@@ -84,10 +84,11 @@ export const AudioWorkspace = () => {
 
   const getStemColor = (trackName: string = ''): string => {
     const lowerName = trackName.toLowerCase();
-    if (lowerName.includes('vocal')) return '#EC4899'; 
-    if (lowerName.includes('drum')) return '#06B6D4';  
-    if (lowerName.includes('bass')) return '#10B981';  
-    return '#F59E0B'; 
+    if (lowerName.includes('vocal')) return '#EC4899'; // Розовый
+    if (lowerName.includes('drum')) return '#06B6D4';  // Бирюзовый
+    if (lowerName.includes('bass')) return '#10B981';  // Зеленый
+    if (lowerName.includes('guitar')) return '#F59E0B'; // Оранжево-желтый
+    return '#8B5CF6'; // Фиолетовый для "Other"
   };
 
   return (

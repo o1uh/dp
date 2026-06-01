@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
+from typing import Optional
 from src.common.dependencies import get_current_user
 from src.modules.users.models import User
 from src.modules.studio.schemas import SessionSaveRequest, SessionLoadResponse
@@ -12,5 +13,9 @@ async def save_session(session_id: str, data: SessionSaveRequest, current_user: 
     return {"status": "saved", "session_id": session_id}
 
 @router.get("/{session_id}", response_model=SessionLoadResponse)
-async def load_session(session_id: str, current_user: User = Depends(get_current_user)):
-    return await load_session_state(str(current_user.id), session_id)
+async def load_session(
+    session_id: str, 
+    task_id: Optional[str] = Query(None, description="Filter track stems by specific processing task ID"),
+    current_user: User = Depends(get_current_user)
+):
+    return await load_session_state(str(current_user.id), session_id, task_id)

@@ -40,16 +40,48 @@ async def process_webhook(payload: WebhookPayload):
         if file_obj:
             file_obj.processing_status = FileProcessingStatus.ready if payload.status == "completed" else FileProcessingStatus.error
 
+        tasks_to_complete = {task_uuid: task}
+
         if payload.status == "completed":
             total_bytes = 0
             for stem_data in payload.stems:
-                stem = Stem(
-                    file_id=file_uuid,
-                    task_id=task_uuid,
-                    **stem_data.model_dump()
+                stem_task_id = uuid.UUID(stem_data.task_id) if stem_data.task_id else task_uuid
+                
+                if stem_task_id not in tasks_to_complete:
+                    alt_task_res = await uow.session.execute(
+                        select(ProcessingTask).where(ProcessingTask.id == stem_task_id)
+                    )
+                    alt_task = alt_task_res.scalar_one_or_none()
+                    if alt_task:
+                        alt_task.status = TaskStatus.completed
+                        alt_task.completed_at = datetime.utcnow()
+                        tasks_to_complete[stem_task_id] = alt_task
+
+                stmt_exists = select(Stem).where(
+                    Stem.file_id == file_uuid,
+                    Stem.stem_class == stem_data.stem_class,
+                    Stem.model_version == stem_data.model_version
                 )
-                uow.session.add(stem)
-                total_bytes += stem.file_size_bytes
+                existing_stem = (await uow.session.execute(stmt_exists)).scalar_one_or_none()
+
+                if existing_stem:
+                    existing_stem.task_id = stem_task_id
+                    existing_stem.s3_key_flac = stem_data.s3_key_flac
+                    existing_stem.s3_key_mp3 = stem_data.s3_key_mp3
+                    existing_stem.file_size_bytes = stem_data.file_size_bytes
+                    total_bytes += stem_data.file_size_bytes
+                else:
+                    stem = Stem(
+                        file_id=file_uuid,
+                        task_id=stem_task_id,
+                        stem_class=stem_data.stem_class,
+                        model_version=stem_data.model_version,
+                        s3_key_flac=stem_data.s3_key_flac,
+                        s3_key_mp3=stem_data.s3_key_mp3,
+                        file_size_bytes=stem_data.file_size_bytes
+                    )
+                    uow.session.add(stem)
+                    total_bytes += stem.file_size_bytes
 
             if file_obj:
                 usage_log = UsageLog(
@@ -60,14 +92,27 @@ async def process_webhook(payload: WebhookPayload):
                 )
                 uow.session.add(usage_log)
 
-        elif payload.status == "failed" and file_obj:
-            await uow.session.execute(
-                update(UserQuotaCurrent)
-                .where(UserQuotaCurrent.user_id == task.user_id)
-                .values(
-                    duration_used_sec=UserQuotaCurrent.duration_used_sec - file_obj.duration_sec
+        elif payload.status == "failed":
+            parent_task_id_str = task.model_config.get("parent_task_id")
+            if parent_task_id_str:
+                parent_task_uuid = uuid.UUID(parent_task_id_str)
+                parent_task_res = await uow.session.execute(
+                    select(ProcessingTask).where(ProcessingTask.id == parent_task_uuid)
                 )
-            )
+                parent_task = parent_task_res.scalar_one_or_none()
+                if parent_task:
+                    parent_task.status = TaskStatus.failed
+                    parent_task.completed_at = datetime.utcnow()
+                    parent_task.error_message = payload.error_message
+
+            if file_obj:
+                await uow.session.execute(
+                    update(UserQuotaCurrent)
+                    .where(UserQuotaCurrent.user_id == task.user_id)
+                    .values(
+                        duration_used_sec=UserQuotaCurrent.duration_used_sec - file_obj.duration_sec
+                    )
+                )
 
         webhook_url = None
         if task.api_key_id:

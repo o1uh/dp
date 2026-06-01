@@ -10,7 +10,8 @@ router = APIRouter(prefix="/tasks", tags=["Processing"])
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
 async def create_task(data: TaskStartRequest, current_user: User = Depends(get_current_user)):
-    task_id = await dispatch_task(str(current_user.id), data.file_id, data.model_config)
+    print(f"[API ROUTER] create_task hit. file_id={data.file_id}, incoming config={data.config}", flush=True)
+    task_id = await dispatch_task(str(current_user.id), data.file_id, data.config)
     return {"task_id": task_id}
 
 @router.get("/{task_id}", response_model=TaskStatusResponse)

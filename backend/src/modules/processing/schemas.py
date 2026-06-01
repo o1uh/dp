@@ -4,7 +4,7 @@ from src.common.enums import TaskStatus
 
 class TaskStartRequest(BaseModel):
     file_id: str
-    model_config: Dict[str, str]
+    config: Dict[str, str]
 
 class TaskStatusResponse(BaseModel):
     id: str
@@ -17,6 +17,7 @@ class StemPayload(BaseModel):
     s3_key_mp3: str
     file_size_bytes: int
     model_version: str
+    task_id: Optional[str] = None
 
 class WebhookPayload(BaseModel):
     task_id: str

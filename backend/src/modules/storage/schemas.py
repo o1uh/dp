@@ -8,6 +8,7 @@ class FileUploadRequest(BaseModel):
     file_size_bytes: int
     duration_sec: float
     original_filename: str
+    separation_mode: Optional[str] = "htdemucs"
 
 class FileUploadResponse(BaseModel):
     is_duplicate: bool

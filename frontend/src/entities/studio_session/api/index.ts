@@ -20,8 +20,10 @@ export interface SessionPayload {
 }
 
 export const studioApi = {
-  loadSession: async (sessionId: string) => {
-    const { data } = await apiClient.get(`/sessions/${sessionId}`);
+  loadSession: async (sessionId: string, taskId?: string | null) => {
+    const { data } = await apiClient.get(`/sessions/${sessionId}`, {
+      params: taskId ? { task_id: taskId } : {}
+    });
     return data;
   },
   
