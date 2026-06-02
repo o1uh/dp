@@ -22,3 +22,11 @@ celery_app.conf.update(
 logger.info("[CELERY BOOTSTRAP] Triggering task autodiscovery for module boundaries: ['src.modules.processing']...")
 celery_app.autodiscover_tasks(["src.modules.processing"])
 logger.info("[CELERY BOOTSTRAP] Celery application successfully configured.")
+
+from celery.signals import after_setup_logger, after_setup_task_logger
+from src.core.logger import setup_logger
+
+@after_setup_logger.connect
+@after_setup_task_logger.connect
+def setup_celery_logging(logger, **kwargs):
+    setup_logger()
