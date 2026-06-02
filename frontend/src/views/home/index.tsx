@@ -8,9 +8,17 @@ export const HomeView = () => {
   const { isAuth, _hasHydrated } = useUserStore();
   const [isClient, setIsClient] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
     setIsClient(true);
+    
+    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' || 'dark';
+    setTheme(savedTheme);
+    if (savedTheme === 'light') {
+      document.documentElement.classList.add('light');
+    }
+
     const handleMouse = (e: MouseEvent) => {
       setMousePos({ x: e.clientX, y: e.clientY });
     };
@@ -18,12 +26,23 @@ export const HomeView = () => {
     return () => window.removeEventListener('mousemove', handleMouse);
   }, []);
 
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    localStorage.setItem('theme', nextTheme);
+    if (nextTheme === 'light') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+    }
+  };
+
   const isUserAuthenticated = isClient && _hasHydrated && isAuth;
   const targetLink = isUserAuthenticated ? '/library' : '/register';
   const buttonText = isUserAuthenticated ? 'В личный кабинет' : 'Начать декомпозицию';
 
   return (
-    <div className="relative flex flex-col min-h-screen bg-background text-white selection:bg-primary/30 overflow-hidden noise-bg">
+    <div className="relative flex flex-col min-h-screen bg-background text-gray-100 selection:bg-primary/30 overflow-hidden noise-bg">
       {/* Ambient glow that follows mouse */}
       <div 
         className="fixed pointer-events-none w-[600px] h-[600px] rounded-full bg-gradient-radial from-secondary/5 to-transparent blur-3xl transition-all duration-1000"
@@ -43,7 +62,7 @@ export const HomeView = () => {
       />
 
       {/* ===== NAVBAR ===== */}
-      <header className="relative z-20 max-w-7xl mx-auto w-full flex items-center justify-between px-6 py-5">
+      <header className="relative z-20 max-w-7xl mx-auto w-full flex items-center justify-between px-6 py-5 select-none">
         <Link href="/" className="group flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-glow-primary group-hover:scale-105 transition-transform">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -51,17 +70,34 @@ export const HomeView = () => {
             </svg>
           </div>
           <span className="text-lg font-black tracking-tight">
-            <span className="text-white">AUDIO</span>
+            <span className="text-gray-100">AUDIO</span>
             <span className="text-primary">.</span>
             <span className="text-secondary">AI</span>
           </span>
         </Link>
 
         <nav className="flex items-center gap-3">
+          {/* Переключатель темы в навигации */}
+          <button
+            onClick={toggleTheme}
+            className="p-2.5 rounded-xl bg-background-surface border border-border hover:border-border-strong text-gray-400 hover:text-gray-100 transition mr-2"
+            title="Сменить тему"
+          >
+            {theme === 'dark' ? (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+              </svg>
+            )}
+          </button>
+
           {isClient && isUserAuthenticated ? (
             <Link 
               href="/library" 
-              className="px-5 py-2.5 bg-primary hover:bg-primary-hover rounded-xl text-xs font-bold transition-all shadow-glow-primary hover:shadow-lg active:scale-[0.97]"
+              className="px-5 py-2.5 bg-primary hover:bg-primary-hover rounded-xl text-xs font-bold text-white transition-all shadow-glow-primary hover:shadow-lg active:scale-[0.97]"
             >
               Перейти в кабинет
             </Link>
@@ -69,13 +105,13 @@ export const HomeView = () => {
             <>
               <Link 
                 href="/login" 
-                className="px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-white transition rounded-xl hover:bg-white/[0.04]"
+                className="px-4 py-2.5 text-xs font-semibold text-gray-400 hover:text-gray-100 transition rounded-xl hover:bg-white/[0.04]"
               >
                 Войти
               </Link>
               <Link 
                 href="/register" 
-                className="px-5 py-2.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.15] rounded-xl text-xs font-semibold text-white transition-all active:scale-[0.97]"
+                className="px-5 py-2.5 bg-background-surface hover:bg-background-deep border border-border hover:border-border-strong rounded-xl text-xs font-semibold text-gray-200 transition-all active:scale-[0.97]"
               >
                 Создать аккаунт
               </Link>
@@ -88,8 +124,8 @@ export const HomeView = () => {
       <main className="relative z-10 flex-1 max-w-6xl mx-auto w-full flex flex-col items-center text-center px-6 pt-16 pb-24">
         
         {/* Badges */}
-        <div className="flex flex-wrap justify-center gap-2 mb-8 animate-fade-in-up">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.03] border border-white/[0.06] rounded-full">
+        <div className="flex flex-wrap justify-center gap-2 mb-8 animate-fade-in-up select-none">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-background-surface border border-border rounded-full">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-green opacity-40" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-accent-green" />
@@ -105,49 +141,44 @@ export const HomeView = () => {
           </div>
         </div>
 
-        {/* Headline */}
-        <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-6 leading-[1.05] animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+        {/* Headline (Исправлено на адаптивный text-gray-100) */}
+        <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-6 leading-[1.05] text-gray-100 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           Разделите трек на <br />
           <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-secondary to-pink-400">
             чистые изолированные дорожки
           </span>
         </h1>
 
-        {/* Subtitle */}
-        <p className="text-base md:text-lg text-gray-500 max-w-2xl mb-10 leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+        {/* Subtitle (Исправлено на адаптивный text-gray-300) */}
+        <p className="text-base md:text-lg text-gray-300 max-w-2xl mb-10 leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
           Профессиональный инструмент декомпозиции аудио. 
-          Извлекайте <span className="text-gray-300">вокал</span>,{' '}
-          <span className="text-gray-300">ударные</span>,{' '}
-          <span className="text-gray-300">бас</span>,{' '}
-          <span className="text-gray-300">гитару</span> и 
-          {' '}<span className="text-gray-300">другие инструменты</span> 
-          с хирургической точностью при помощи нейросетевых алгоритмов.
+          Извлекайте вокал, ударные, бас, гитару и другие инструменты с хирургической точностью при помощи нейросетевых алгоритмов.
         </p>
 
         {/* CTA */}
         <div className="flex items-center gap-4 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
           <Link 
             href={targetLink} 
-            className="group relative px-8 py-4 bg-primary hover:bg-primary-hover shadow-glow-primary hover:shadow-lg rounded-2xl font-bold transition-all text-sm active:scale-[0.97] overflow-hidden"
+            className="group relative px-8 py-4 bg-primary hover:bg-primary-hover text-white shadow-glow-primary hover:shadow-lg rounded-2xl font-bold transition-all text-sm active:scale-[0.97] overflow-hidden"
           >
             <span className="relative z-10">{buttonText}</span>
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
           </Link>
           <Link 
             href="/catalog" 
-            className="px-6 py-4 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-2xl text-xs font-semibold text-gray-300 hover:text-white transition-all"
+            className="px-6 py-4 bg-background-surface hover:bg-background-deep border border-border text-gray-200 hover:text-gray-100 rounded-2xl text-xs font-semibold transition-all"
           >
             Изучить каталог
           </Link>
         </div>
 
         {/* ===== DAW Preview ===== */}
-        <div className="w-full mt-20 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-          <div className="p-1.5 bg-gradient-to-b from-white/[0.06] to-transparent rounded-2xl shadow-elevated">
-            <div className="bg-background-surface/90 backdrop-blur-sm rounded-xl overflow-hidden border border-white/[0.04]">
+        <div className="w-full mt-20 animate-fade-in-up shadow-glow-primary" style={{ animationDelay: '0.4s' }}>
+          <div className="p-1.5 bg-gradient-to-b from-white/[0.06] to-transparent rounded-2xl">
+            <div className="bg-background-surface rounded-xl overflow-hidden border border-border">
               
               {/* Title bar */}
-              <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.04]">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
                   <div className="flex gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
@@ -158,7 +189,7 @@ export const HomeView = () => {
                 <span className="text-[10px] font-mono text-gray-600">session_demucs_v4_029.flac</span>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-mono text-gray-600">AI Processing</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse-glow" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" />
                 </div>
               </div>
               
@@ -175,7 +206,7 @@ export const HomeView = () => {
                     <span className="w-20 text-[10px] font-mono font-bold text-gray-500 tracking-wider text-right">
                       {track.label}
                     </span>
-                    <div className="flex-1 h-9 bg-white/[0.02] border border-white/[0.04] rounded-lg relative overflow-hidden">
+                    <div className="flex-1 h-9 bg-background-deep border border-border rounded-lg relative overflow-hidden">
                       <div 
                         className="absolute inset-y-0 left-0 bg-gradient-to-r rounded-lg transition-all duration-500 group-hover:brightness-125"
                         style={{ width: track.pct, background: `linear-gradient(90deg, ${track.accent}40, ${track.accent}08)` }}
@@ -191,7 +222,7 @@ export const HomeView = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="w-8 h-8 rounded-lg bg-white/[0.02] border border-white/[0.04] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-8 h-8 rounded-lg bg-background-deep border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <svg className="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M8 5v14l11-7z" />
                       </svg>
@@ -201,10 +232,10 @@ export const HomeView = () => {
               </div>
 
               {/* Timeline */}
-              <div className="flex items-center justify-between px-5 py-2.5 border-t border-white/[0.04] text-[10px] font-mono text-gray-600">
+              <div className="flex items-center justify-between px-5 py-2.5 border-t border-border text-[10px] font-mono text-gray-600">
                 <div className="flex items-center gap-4">
                   <span>00:00</span>
-                  <div className="w-40 h-0.5 bg-white/[0.04] rounded-full relative overflow-hidden">
+                  <div className="w-40 h-0.5 bg-background-deep rounded-full relative overflow-hidden">
                     <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-primary to-secondary rounded-full animate-progress" />
                   </div>
                 </div>
@@ -247,9 +278,9 @@ export const HomeView = () => {
           ].map((feature, i) => (
             <div 
               key={i} 
-              className="group p-6 rounded-2xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.04] hover:border-white/[0.08] transition-all duration-300 text-left"
+              className="group p-6 rounded-2xl bg-background-surface border border-border hover:border-border-strong transition-all duration-300 text-left"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-white/[0.06] flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-border flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform">
                 {feature.icon}
               </div>
               <h3 className="text-sm font-bold text-gray-200 mb-2">{feature.title}</h3>
@@ -259,12 +290,12 @@ export const HomeView = () => {
         </div>
 
         {/* ===== Footer ===== */}
-        <footer className="w-full mt-24 pt-8 border-t border-white/[0.04] flex flex-col md:flex-row items-center justify-between gap-4 text-[10px] font-mono text-gray-600">
+        <footer className="w-full mt-24 pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-[10px] font-mono text-gray-600">
           <div className="flex items-center gap-4">
             <span>© 2026 AUDIO.AI</span>
-            <span className="w-1 h-1 rounded-full bg-white/[0.06]" />
+            <span className="w-1 h-1 rounded-full bg-border" />
             <span>Built with Demucs</span>
-            <span className="w-1 h-1 rounded-full bg-white/[0.06]" />
+            <span className="w-1 h-1 rounded-full bg-border" />
             <span>v2.0.0</span>
           </div>
           <div className="flex items-center gap-4">
