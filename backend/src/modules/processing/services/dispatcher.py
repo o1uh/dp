@@ -1,4 +1,5 @@
 import uuid
+import os
 from sqlalchemy import select
 from src.infrastructure.db.uow import UnitOfWork
 from src.modules.processing.models import ProcessingTask, Stem
@@ -7,10 +8,31 @@ from src.core.worker.celery_app import celery_app
 from src.modules.storage.repositories import FileRepository
 from src.core.exceptions import NotFoundError, BusinessRuleError
 from src.common.enums import FileProcessingStatus, TaskStatus
+from src.infrastructure.redis.client import get_redis_client
 from src.core.logger import logger
 
 async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
     logger.info(f"Dispatcher payload validation started. User ID: {user_id}, Target File: {file_id}, Parameters: {model_config}")
+    
+    model_config_dict = dict(model_config) if model_config else {}
+    
+    env_mock = os.getenv("MOCK_ML_PROCESSING", "False").lower() in ("true", "1", "yes")
+    redis_mock = False
+    r_client = None
+    try:
+        r_client = get_redis_client()
+        val = await r_client.get("MOCK_ML_PROCESSING")
+        redis_mock = (val == "True")
+    except Exception as e:
+        logger.warning(f"[DISPATCHER] Failed to read mock mode from Redis: {e}")
+    finally:
+        if r_client:
+            await r_client.close()
+
+    if env_mock or redis_mock:
+        model_config_dict["is_mock_mode"] = True
+        logger.info(f"[DISPATCHER] Mock mode active (env={env_mock}, redis={redis_mock}). Injected 'is_mock_mode'=True into config.")
+
     async with UnitOfWork() as uow:
         file_repo = FileRepository(uow.session)
         logger.info(f"Resolving physical file profile matching ID: {file_id}")
@@ -25,7 +47,6 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
             logger.error(f"Task dispatch aborted. File payload has not yet uploaded or confirmed. File ID: {file_id}")
             raise BusinessRuleError("File upload is not confirmed yet")
 
-        model_config_dict = dict(model_config) if model_config else {}
         model_type = model_config_dict.get("model", "htdemucs")
         
         logger.info(f"Scanning tasks repository for existing completed separation tasks for File: {file_obj.id}")
@@ -123,10 +144,15 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
         parent_task = None
         if model_config_dict.get("model") == "cascade_guitar" and len(existing_stems) < 4:
             logger.info("Cascade guitar requested but standard 4 stems do not exist. Scheduling prerequisite base HTDemucs parent task...")
+            
+            parent_config = {"model": "htdemucs"}
+            if model_config_dict.get("is_mock_mode"):
+                parent_config["is_mock_mode"] = True
+
             parent_task = ProcessingTask(
                 user_id=user_id,
                 file_id=file_id,
-                model_config={"model": "htdemucs"},
+                model_config=parent_config,
                 status=TaskStatus.pending
             )
             uow.session.add(parent_task)
