@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, status
 from src.common.dependencies import get_current_user
 from src.modules.users.models import User
@@ -38,10 +39,36 @@ async def download_stem(stem_id: str, current_user: User = Depends(get_current_u
         
         if not user_stem:
             raise NotFoundError("Stem not found")
-            
-        if str(user_stem.user_id) != str(current_user.id) and user_stem.visibility.value != "public":
+        
+        has_access = False
+        
+        if str(user_stem.user_id) == str(current_user.id):
+            has_access = True
+        elif user_stem.visibility.value == "public":
+            has_access = True
+        elif user_stem.track_id:
+            from src.modules.library.models import Track, UserSavedTrack
+            stmt_track = select(Track).where(Track.id == user_stem.track_id)
+            track_obj = (await uow.session.execute(stmt_track)).scalar_one_or_none()
+            if track_obj:
+                if str(track_obj.user_id) == str(current_user.id):
+                    has_access = True
+                elif track_obj.visibility.value == "private":
+                    has_access = False
+                elif track_obj.visibility.value == "public":
+                    has_access = True
+                else:
+                    stmt_saved = select(UserSavedTrack).where(
+                        UserSavedTrack.user_id == current_user.id,
+                        UserSavedTrack.track_id == track_obj.id
+                    )
+                    is_saved = (await uow.session.execute(stmt_saved)).scalar_one_or_none() is not None
+                    if is_saved:
+                        has_access = True
+
+        if not has_access:
             raise AccessDeniedError("Access denied")
-            
+
         stmt = select(Stem).where(Stem.id == user_stem.stem_id)
         result = await uow.session.execute(stmt)
         physical_stem = result.scalar_one_or_none()
@@ -52,6 +79,15 @@ async def download_stem(stem_id: str, current_user: User = Depends(get_current_u
         user_stem.downloads_count += 1
         await uow.commit()
 
-        url = await generate_get_url("audio-platform-uploads", physical_stem.s3_key_mp3)
+        ext = os.path.splitext(physical_stem.s3_key_mp3)[1]
+        
+        from src.modules.library.models import Track
+        stmt_t = select(Track).where(Track.id == user_stem.track_id)
+        track_obj = (await uow.session.execute(stmt_t)).scalar_one_or_none()
+        track_title = track_obj.title if track_obj else "Stem"
+
+        custom_filename = f"{track_title} - {physical_stem.stem_class}{ext}"
+
+        url = await generate_get_url("audio-platform-uploads", physical_stem.s3_key_mp3, custom_filename=custom_filename)
         # url = await generate_get_url("audio-platform-uploads", physical_stem.s3_key_flac)
         return {"download_url": url}

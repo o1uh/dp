@@ -91,14 +91,16 @@ export const UploadZone = () => {
               setStatus('ready');
               queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRACKS.LIST(userId) });
               queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PROFILE.ME });
-              setTimeout(() => reset(), 2000);
+              setTimeout(() => reset(), 3000);
               return;
             } else {
-              setStatus('processing');
               await apiClient.post('/tasks', {
                 file_id: initRes.file_id,
                 config: { model: modelToUse }
               });
+              setStatus('ready');
+              queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRACKS.LIST(userId) });
+              setTimeout(() => reset(), 3000);
               return;
             }
           }
@@ -106,12 +108,16 @@ export const UploadZone = () => {
           if (initRes.upload_url && initRes.file_id) {
             await fileApi.uploadToS3(initRes.upload_url, file, setProgress);
             await fileApi.confirmUpload(initRes.file_id);
-            setStatus('processing');
             
             await apiClient.post('/tasks', {
               file_id: initRes.file_id,
               config: { model: modelToUse }
             });
+
+            setStatus('ready');
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRACKS.LIST(userId) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PROFILE.ME });
+            setTimeout(() => reset(), 3000);
           }
         } catch (err: any) {
           setError(err.response?.data?.message || err.message || 'Ошибка передачи данных на S3');
@@ -246,8 +252,8 @@ export const UploadZone = () => {
               </svg>
             </div>
             <div>
-              <p className="text-sm font-bold text-accent-green">Готово к обработке</p>
-              <p className="text-[10px] text-gray-600 mt-0.5">Трек отправлен в очередь AI-воркера</p>
+              <p className="text-sm font-bold text-accent-green">Успешно загружено и добавлено в очередь!</p>
+              <p className="text-[10px] text-gray-600 mt-0.5">Трек появился в библиотеке и обрабатывается на сервере.</p>
             </div>
           </div>
         )}

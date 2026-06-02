@@ -1,4 +1,5 @@
 import uuid
+import os
 from typing import List
 from sqlalchemy import select, delete
 from src.infrastructure.db.uow import UnitOfWork
@@ -33,11 +34,14 @@ async def process_track_ready_event(user_id: str, file_id: str, task_id: str) ->
 
         if not track:
             logger.info("Virtual Track record is missing. Creating new user track entry...")
+            original_filename = file_obj.s3_key_original.split('/')[-1]
+            title_without_ext = os.path.splitext(original_filename)[0]
+
             track = Track(
                 user_id=uuid.UUID(user_id),
                 file_id=uuid.UUID(file_id),
-                title=file_obj.s3_key_original.split('/')[-1] or "New Track",
-                original_filename=file_obj.s3_key_original.split('/')[-1]
+                title=title_without_ext,
+                original_filename=original_filename
             )
             lib_repo.add_track(track)
             await uow.session.flush()
@@ -169,7 +173,10 @@ async def get_track_download_url(user_id: str, track_id: str) -> str:
         track.downloads_count += 1
         await uow.commit()
 
+        ext = os.path.splitext(file_obj.s3_key_original)[1]
+        custom_filename = f"{track.title}{ext}"
+
         logger.info(f"Requesting GET presigned URL for S3 key: {file_obj.s3_key_original}")
-        url = await generate_get_url("audio-platform-uploads", file_obj.s3_key_original)
+        url = await generate_get_url("audio-platform-uploads", file_obj.s3_key_original, custom_filename=custom_filename)
         logger.info(f"Download link generated successfully.")
         return url

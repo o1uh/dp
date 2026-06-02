@@ -32,8 +32,14 @@ async def save_session_state(user_id: str, session_id: str, data: SessionSaveReq
                 
                 logger.info(f"Checking ownership for stem: {track.stem_id}. Owner: {user_stem.user_id}, Requester: {user_id}, Visibility: {user_stem.visibility}")
                 if str(user_stem.user_id) != user_id and user_stem.visibility.value == "private":
-                    logger.warning(f"Validation failed: Private stem {track.stem_id} belongs to another user")
-                    raise AccessDeniedError(f"Access denied to stem {track.stem_id}")
+                    from src.modules.library.models import Track
+                    stmt_t = select(Track).where(Track.id == user_stem.track_id)
+                    t_obj = (await uow.session.execute(stmt_t)).scalar_one_or_none()
+                    if t_obj and t_obj.visibility.value == "public":
+                        pass
+                    else:
+                        logger.warning(f"Validation failed: Private stem {track.stem_id} belongs to another user")
+                        raise AccessDeniedError(f"Access denied to stem {track.stem_id}")
                 
                 logical_to_physical[track.stem_id] = user_stem.stem_id
                 logger.info(f"Mapped logical stem {track.stem_id} to physical stem: {user_stem.stem_id}")
@@ -191,8 +197,21 @@ async def load_session_state(user_id: str, session_id: str, task_id: Optional[st
             raise NotFoundError("Session or Track not found")
             
         if str(track.user_id) != user_id:
-            logger.error(f"Access denied: User {user_id} does not own Virtual Track profile: {track.id}")
-            raise AccessDeniedError("Access denied")
+            if track.visibility.value == "private":
+                logger.error(f"Access denied: Track {track.id} was made private by owner.")
+                raise AccessDeniedError("Access denied")
+                
+            from src.modules.library.models import UserSavedTrack
+            is_public = track.visibility.value == "public"
+            stmt_saved = select(UserSavedTrack).where(
+                UserSavedTrack.user_id == uuid.UUID(user_id),
+                UserSavedTrack.track_id == track.id
+            )
+            is_saved = (await uow.session.execute(stmt_saved)).scalar_one_or_none() is not None
+            
+            if not is_public and not is_saved:
+                logger.error(f"Access denied: User {user_id} does not own and has not saved Virtual Track profile: {track.id}")
+                raise AccessDeniedError("Access denied")
 
         target_task_uuid = None
         if task_id:
@@ -204,8 +223,7 @@ async def load_session_state(user_id: str, session_id: str, task_id: Optional[st
                 select(ProcessingTask.id)
                 .where(
                     ProcessingTask.file_id == track.file_id, 
-                    ProcessingTask.status == TaskStatus.completed,
-                    ProcessingTask.user_id == uuid.UUID(user_id)
+                    ProcessingTask.status == TaskStatus.completed
                 )
                 .order_by(ProcessingTask.created_at.desc())
                 .limit(1)

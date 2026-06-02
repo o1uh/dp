@@ -33,6 +33,8 @@ class TrackResponse(BaseModel):
     deleted_at: Optional[datetime] = None
     processed_models: List[ProcessedModelInfo] = []
     is_processing: bool = False
+    is_failed: bool = False
+    error_message: Optional[str] = None
 
 class TrackListResponse(BaseModel):
     items: List[TrackResponse]

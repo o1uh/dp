@@ -46,6 +46,29 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
         if file_obj.processing_status == FileProcessingStatus.awaiting_upload:
             logger.error(f"Task dispatch aborted. File payload has not yet uploaded or confirmed. File ID: {file_id}")
             raise BusinessRuleError("File upload is not confirmed yet")
+        
+        from src.modules.library.models import Track
+        
+        stmt_track_check = select(Track).where(
+            Track.file_id == file_obj.id,
+            Track.user_id == uuid.UUID(user_id),
+            Track.deleted_at.is_(None)
+        )
+        track = (await uow.session.execute(stmt_track_check)).scalar_one_or_none()
+
+        if not track:
+            logger.info(f"[DISPATCHER] Creating immediate Track record for User: {user_id}, File: {file_id}")
+            original_filename = file_obj.s3_key_original.split('/')[-1]
+            title_without_ext = os.path.splitext(original_filename)[0]
+            
+            track = Track(
+                user_id=uuid.UUID(user_id),
+                file_id=file_obj.id,
+                title=title_without_ext,
+                original_filename=original_filename
+            )
+            uow.session.add(track)
+            await uow.session.flush()
 
         model_type = model_config_dict.get("model", "htdemucs")
         
@@ -64,15 +87,19 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
 
         if existing_completed_task:
             logger.info(f"Instant clone optimization triggered for User: {user_id}, File: {file_obj.id}, Model Type: '{model_type}'")
-            
+                
             logger.info("Scanning for existing identical cloned tasks already assigned to this user profile...")
+                
             stmt_task_check = select(ProcessingTask).where(
                 ProcessingTask.file_id == file_obj.id,
-                ProcessingTask.user_id == uuid.UUID(user_id),
-                ProcessingTask.model_config == existing_completed_task.model_config
+                ProcessingTask.user_id == uuid.UUID(user_id)
             )
-            cloned_task = (await uow.session.execute(stmt_task_check)).scalar_one_or_none()
-
+            user_tasks = (await uow.session.execute(stmt_task_check)).scalars().all()
+                
+            cloned_task = next(
+                (t for t in user_tasks if t.model_config.get("model") == model_type),
+                None
+            )                
             if not cloned_task:
                 logger.info("No matching virtual task found for user. Generating new task entry reflecting original compute timestamps...")
                 cloned_task = ProcessingTask(
@@ -93,31 +120,21 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
             orig_stems = (await uow.session.execute(stmt_stems)).scalars().all()
             logger.info(f"Total parent stems located: {len(orig_stems)}")
 
-            logger.info(f"Checking for track aliases related to User: {user_id}, File: {file_obj.id}")
-            stmt_track = select(Track).where(
-                Track.user_id == uuid.UUID(user_id),
-                Track.file_id == file_obj.id,
-                Track.deleted_at.is_(None)
-            )
-            track = (await uow.session.execute(stmt_track)).scalar_one_or_none()
-
-            if track:
-                logger.info(f"Track alias located with ID: {track.id}. Mapping original stems dynamically...")
-                for s_orig in orig_stems:
-                    stmt_us_check = select(UserStem).where(
-                        UserStem.user_id == uuid.UUID(user_id),
-                        UserStem.stem_id == s_orig.id
+            for s_orig in orig_stems:
+                stmt_us_check = select(UserStem).where(
+                    UserStem.user_id == uuid.UUID(user_id),
+                    UserStem.stem_id == s_orig.id
+                )
+                existing_us = (await uow.session.execute(stmt_us_check)).scalar_one_or_none()
+                
+                if not existing_us:
+                    logger.info(f"Linking UserStem entity to Track ID: {track.id} referencing original Stem ID: {s_orig.id}")
+                    user_stem = UserStem(
+                        user_id=uuid.UUID(user_id),
+                        stem_id=s_orig.id,
+                        track_id=track.id
                     )
-                    existing_us = (await uow.session.execute(stmt_us_check)).scalar_one_or_none()
-                    
-                    if not existing_us:
-                        logger.info(f"Linking UserStem entity to Track ID: {track.id} referencing original Stem ID: {s_orig.id}")
-                        user_stem = UserStem(
-                            user_id=uuid.UUID(user_id),
-                            stem_id=s_orig.id,
-                            track_id=track.id
-                        )
-                        uow.session.add(user_stem)
+                    uow.session.add(user_stem)
 
             logger.info("Committing instant clone database transactions context...")
             await uow.commit()

@@ -25,6 +25,8 @@ export interface Track {
   deleted_at?: string | null;
   processed_models?: ProcessedModelInfo[];
   is_processing?: boolean;
+  is_failed?: boolean;
+  error_message?: string | null;
 }
 
 export const trackApi = {

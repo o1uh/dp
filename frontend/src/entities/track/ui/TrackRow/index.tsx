@@ -26,13 +26,18 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
   const [isReprocessing, setIsReprocessing] = useState(false);
 
   const isOwner = !track.user_id || track.user_id === currentUserId;
-  const isOrphaned = !!track.deleted_at && !isOwner;
+  
+  const isPrivateByOther = !isOwner && track.visibility === 'private';
+  const isDeleted = !!track.deleted_at;
+  const isFailed = !!track.is_failed;
+  const isProcessingActive = track.is_processing || isReprocessing;
+
+  const isUnavailable = isDeleted || isFailed || isPrivateByOther;
+  const isActionsDisabled = isDeleted || isFailed || isProcessingActive || isPrivateByOther;
 
   const hasHtdemucs = track.processed_models?.some(m => m.model_name === 'htdemucs') ?? false;
   const hasCascade = track.processed_models?.some(m => m.model_name === 'cascade_guitar') ?? false;
-  const isProcessingActive = track.is_processing || isReprocessing;
 
-  // Парсинг, очистка и сортировка жанров по алфавиту
   const sortedGenres = useMemo(() => {
     if (!track.genre) return [];
     return track.genre
@@ -44,7 +49,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
 
   const handleReprocess = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!track.file_id || isProcessingActive) return;
+    if (!track.file_id || isActionsDisabled) return;
     setIsReprocessing(true);
 
     try {
@@ -70,38 +75,83 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
     }
   };
 
+  const fileExtension = useMemo(() => {
+    if (!track.original_filename) return '';
+    const parts = track.original_filename.split('.');
+    return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : '';
+  }, [track.original_filename]);
+
+  const cardStyleClass = useMemo(() => {
+    if (isDeleted || isPrivateByOther) return 'border-accent-red/20 bg-red-950/[0.03]';
+    if (isFailed) return 'border-accent-red/30 bg-accent-red/[0.02]';
+    return 'border-border hover:border-border-strong hover:bg-background-surface/50';
+  }, [isDeleted, isFailed, isPrivateByOther]);
+
+  const statusDetails = useMemo(() => {
+    if (!isUnavailable) return null;
+    
+    if (isDeleted) {
+      return {
+        title: '🗑️ Трек недоступен',
+        description: isOwner 
+          ? 'Вы удалили этот трек из личной библиотеки.' 
+          : 'Оригинальный трек был удален его владельцем.'
+      };
+    }
+    
+    if (isFailed) {
+      return {
+        title: '⚠️ Сбой сегментации',
+        description: track.error_message || 'Внутренняя ошибка воркера при обработке нейросетью.'
+      };
+    }
+    
+    if (isPrivateByOther) {
+      return {
+        title: '🔒 Приватный трек',
+        description: 'Владелец перевел этот трек в приватный режим. Сведение и скачивание ограничены.'
+      };
+    }
+    
+    return null;
+  }, [isUnavailable, isDeleted, isFailed, isPrivateByOther, isOwner, track.error_message]);
+
   return (
     <div className={`
       group relative bg-background-surface border rounded-xl p-4 
       flex flex-col justify-between 
       transition-all duration-200 hover:scale-[1.01] hover:shadow-elevated
-      ${isOrphaned 
-        ? 'opacity-50 border-accent-red/20 bg-red-950/5' 
-        : 'border-border hover:border-border-strong hover:bg-background-surface/50'
-      }
+      ${cardStyleClass}
     `}>
       {/* Top section */}
       <div>
         <div className="flex items-start justify-between gap-2 mb-2">
-          <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">
-            {new Date(track.created_at).toLocaleDateString('ru-RU')}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">
+              {new Date(track.created_at).toLocaleDateString('ru-RU')}
+            </span>
+            {fileExtension && (
+              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-background-deep border border-border text-gray-400">
+                {fileExtension}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1.5">
             {!isOwner && (
               <span className="text-[9px] font-mono font-black text-secondary uppercase tracking-wider">
                 Каталог
               </span>
             )}
-            <span className={`w-1.5 h-1.5 rounded-full ${track.visibility === 'public' ? 'bg-accent-green' : 'bg-gray-500'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${track.visibility === 'public' && !isUnavailable ? 'bg-accent-green' : 'bg-gray-500'}`} />
             <span className="text-[9px] font-mono text-gray-400 uppercase tracking-wider">{track.visibility}</span>
           </div>
         </div>
 
-        <h3 className={`text-sm font-bold truncate transition duration-200 ${isOrphaned ? 'text-gray-500 line-through' : 'text-gray-100 group-hover:text-primary'}`}>
+        <h3 className={`text-sm font-bold truncate transition duration-200 ${isUnavailable ? 'text-gray-500 line-through' : 'text-gray-100 group-hover:text-primary'}`}>
           {track.title}
         </h3>
 
-        {/* Version badges */}
+        {/* Бейджи статусов с исключением наложений по приоритету */}
         <div className="mt-2.5 flex gap-1.5 flex-wrap min-h-[24px] items-center">
           {isProcessingActive ? (
             <span className="inline-flex items-center gap-1.5 text-[9px] font-mono font-bold px-2 py-1 rounded-lg bg-accent-yellow/15 text-accent-yellow border border-accent-yellow/25 animate-pulse">
@@ -110,6 +160,18 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-accent-yellow" />
               </span>
               ОБРАБОТКА AI...
+            </span>
+          ) : isDeleted ? (
+            <span className="inline-flex items-center gap-1.5 text-[9px] font-mono font-bold px-2 py-1 rounded-lg bg-background-deep text-gray-300 border border-border">
+              🗑️ ТРЕК УДАЛЕН
+            </span>
+          ) : isFailed ? (
+            <span className="inline-flex items-center gap-1.5 text-[9px] font-mono font-bold px-2 py-1 rounded-lg bg-accent-red/15 text-accent-red border border-accent-red/25">
+              ⚠️ СБОЙ ОБРАБОТКИ AI
+            </span>
+          ) : isPrivateByOther ? (
+            <span className="inline-flex items-center gap-1.5 text-[9px] font-mono font-bold px-2 py-1 rounded-lg bg-accent-red/15 text-accent-red border border-accent-red/25">
+              🔒 ПРИВАТНЫЙ ТРЕК
             </span>
           ) : (
             <>
@@ -123,28 +185,20 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
                   5 STEMS (CASCADE) ⭐
                 </span>
               )}
-              {isOwner && !isOrphaned && hasHtdemucs && !hasCascade && (
+              {isOwner && hasHtdemucs && !hasCascade && (
                 <button
                   onClick={handleReprocess}
                   disabled={isProcessingActive}
-                  className="text-[9px] font-mono font-bold px-2 py-1 rounded-lg bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20 transition flex items-center gap-1 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+                  className="text-[9px] font-mono font-bold px-2 py-1 rounded-lg bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20 transition flex items-center gap-1 active:scale-95"
                 >
-                  {isReprocessing ? (
-                    <div className="w-2.5 h-2.5 rounded-full border border-secondary/20 border-t-secondary animate-spin" />
-                  ) : (
-                    '⭐ До 5 стемов'
-                  )}
+                  ⭐ До 5 стемов
                 </button>
               )}
             </>
           )}
         </div>
 
-        {isOrphaned ? (
-          <div className="mt-3 text-[10px] font-mono font-bold text-accent-red uppercase tracking-wider">
-            Файл больше не доступен
-          </div>
-        ) : (
+        {!isUnavailable && (
           <div className="mt-3 flex items-center gap-1.5 flex-wrap">
             {sortedGenres.length > 0 ? (
               sortedGenres.map((genre) => (
@@ -167,111 +221,106 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
         )}
       </div>
 
-      {/* Actions */}
-      <div className="mt-4 grid grid-cols-2 gap-1.5 relative">
-        <button 
-          onClick={() => !isOrphaned && setPlaylist([track], 0)}
-          disabled={isOrphaned || isProcessingActive}
-          className="px-3 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 shadow-glow-primary active:scale-95 disabled:opacity-20 disabled:pointer-events-none"
-        >
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-          Слушать
-        </button>
-        
-        {/* Studio button with version menu */}
-        {isOrphaned ? (
-          <button 
-            disabled 
-            className="px-3 py-2 bg-background-deep border border-border text-gray-500 text-xs font-bold rounded-xl opacity-40 cursor-not-allowed"
-          >
-            В студию
-          </button>
+      {/* Actions Section */}
+      <div className="mt-4 min-h-[96px] flex flex-col justify-between gap-2.5">
+        {isUnavailable && statusDetails ? (
+          <div className="flex-1 flex flex-col justify-center p-3 rounded-xl bg-accent-red/[0.03] border border-accent-red/10 text-center min-h-[82px] animate-fade-in-scale">
+            <p className="text-[10px] font-mono font-bold text-accent-red uppercase tracking-wider mb-1">
+              {statusDetails.title}
+            </p>
+            <p className="text-[10px] text-gray-300 leading-normal">
+              {statusDetails.description}
+            </p>
+          </div>
         ) : (
-          <div className="relative w-full">
-            {track.processed_models && track.processed_models.length > 1 ? (
-              <>
-                <button 
-                  onClick={() => !isProcessingActive && setShowVersionMenu(!showVersionMenu)}
-                  disabled={isProcessingActive}
-                  className="w-full px-3 py-2 bg-secondary hover:bg-secondary-hover text-white text-xs font-bold rounded-xl transition active:scale-95 flex items-center justify-center gap-1 disabled:opacity-30 disabled:pointer-events-none"
+          <div className="grid grid-cols-2 gap-1.5">
+            <button 
+              onClick={() => !isActionsDisabled && setPlaylist([track], 0)}
+              disabled={isActionsDisabled}
+              className="px-3 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 shadow-glow-primary active:scale-95"
+            >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              Слушать
+            </button>
+            
+            <div className="relative w-full">
+              {track.processed_models && track.processed_models.length > 1 ? (
+                <>
+                  <button 
+                    onClick={() => !isProcessingActive && setShowVersionMenu(!showVersionMenu)}
+                    disabled={isProcessingActive}
+                    className="w-full px-3 py-2 bg-secondary hover:bg-secondary-hover text-white text-xs font-bold rounded-xl transition active:scale-95 flex items-center justify-center gap-1"
+                  >
+                    В студию
+                    <svg className={`w-2.5 h-2.5 transition-transform ${showVersionMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </button>
+                  
+                  {showVersionMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowVersionMenu(false)} />
+                      <div className="absolute bottom-full mb-1.5 left-0 right-0 bg-background-surface border border-border-strong rounded-xl shadow-elevated overflow-hidden z-50 flex flex-col divide-y divide-border">
+                        {track.processed_models.map((model) => (
+                          <Link 
+                            key={model.task_id} 
+                            href={`/studio/${track.id}?task_id=${model.task_id}`}
+                            onClick={() => setShowVersionMenu(false)}
+                            className="px-3 py-2.5 text-[10px] font-mono text-left text-gray-200 hover:bg-background-deep block transition"
+                          >
+                            <span>{model.model_name === 'cascade_guitar' ? '⭐ 5 Stems' : '4 Stems'}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <Link 
+                  href={isProcessingActive ? '#' : `/studio/${track.id}${track.processed_models?.[0] ? `?task_id=${track.processed_models[0].task_id}` : ''}`} 
+                  className={`w-full ${isProcessingActive ? 'pointer-events-none' : ''}`}
                 >
-                  В студию
-                  <svg className={`w-2.5 h-2.5 transition-transform ${showVersionMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </button>
-                
-                {showVersionMenu && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowVersionMenu(false)} />
-                    <div className="absolute bottom-full mb-1.5 left-0 right-0 bg-background-surface border border-border-strong rounded-xl shadow-elevated overflow-hidden z-50 flex flex-col divide-y divide-border animate-fade-in-up">
-                      {track.processed_models.map((model) => (
-                        <Link 
-                          key={model.task_id} 
-                          href={`/studio/${track.id}?task_id=${model.task_id}`}
-                          onClick={() => setShowVersionMenu(false)}
-                          className="px-3 py-2.5 text-[10px] font-mono text-left text-gray-200 hover:bg-background-deep block transition flex items-center justify-between"
-                        >
-                          <span>{model.model_name === 'cascade_guitar' ? '⭐ 5 Stems (Каскад)' : '4 Stems (HTDemucs)'}</span>
-                          <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5-7.5" />
-                          </svg>
-                        </Link>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </>
-            ) : (
-              <Link 
-                href={isProcessingActive ? '#' : `/studio/${track.id}${track.processed_models?.[0] ? `?task_id=${track.processed_models[0].task_id}` : ''}`} 
-                className={`w-full ${isProcessingActive ? 'pointer-events-none' : ''}`}
+                  <button 
+                    disabled={isProcessingActive}
+                    className="w-full px-3 py-2 bg-secondary hover:bg-secondary-hover text-white text-xs font-bold rounded-xl transition active:scale-95"
+                  >
+                    В студию
+                  </button>
+                </Link>
+              )}
+            </div>
+
+            <button 
+              onClick={() => !isUnavailable && onDownload(track.id)}
+              disabled={isActionsDisabled}
+              className="px-3 py-2 bg-background-elevated hover:bg-background-deep border border-border text-gray-200 hover:text-gray-100 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5"
+            >
+              Скачать
+            </button>
+            
+            {onEdit && isOwner ? (
+              <button 
+                onClick={() => onEdit(track)}
+                disabled={isProcessingActive}
+                className="px-3 py-2 bg-background-elevated hover:bg-background-deep border border-border text-gray-200 hover:text-gray-100 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5"
               >
-                <button 
-                  disabled={isProcessingActive}
-                  className="w-full px-3 py-2 bg-secondary hover:bg-secondary-hover text-white text-xs font-bold rounded-xl transition active:scale-95 disabled:opacity-30"
-                >
-                  В студию
-                </button>
-              </Link>
+                Инфо
+              </button>
+            ) : (
+              <span className="px-3 py-2 bg-background-deep text-gray-500 text-[10px] font-mono font-bold flex items-center justify-center rounded-xl border border-border">
+                {!isOwner ? 'КАТАЛОГ' : 'НЕДОСТУПЕН'}
+              </span>
             )}
           </div>
         )}
 
-        <button 
-          onClick={() => !isOrphaned && onDownload(track.id)}
-          disabled={isOrphaned || isProcessingActive}
-          className="px-3 py-2 bg-background-elevated hover:bg-background-deep border border-border text-gray-200 hover:text-gray-100 text-xs font-semibold rounded-xl transition disabled:opacity-20 disabled:pointer-events-none flex items-center justify-center gap-1.5"
-        >
-          <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 6m0 0l-4.5 4.5M12 6v13.5" />
-          </svg>
-          Скачать
-        </button>
-        
-        {onEdit && isOwner && !isOrphaned ? (
-          <button 
-            onClick={() => onEdit(track)}
-            disabled={isProcessingActive}
-            className="px-3 py-2 bg-background-elevated hover:bg-background-deep border border-border text-gray-200 hover:text-gray-100 text-xs font-semibold rounded-xl transition disabled:opacity-30 flex items-center justify-center gap-1.5"
-          >
-            <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-            </svg>
-            Инфо
-          </button>
-        ) : (
-          <span className="px-3 py-2 bg-background-deep text-gray-500 text-[10px] font-mono font-bold flex items-center justify-center rounded-xl border border-border">
-            {!isOwner ? 'КАТАЛОГ' : 'НЕДОСТУПЕН'}
-          </span>
-        )}
-        
+        {/* Кнопка удаления (всегда активна для очистки личной библиотеки) */}
         <button 
           onClick={() => onDelete(track.id)}
           disabled={isProcessingActive}
-          className="col-span-2 mt-1 px-3 py-1.5 text-center text-[10px] font-mono font-semibold text-gray-500 hover:text-accent-red hover:bg-accent-red/5 rounded-xl transition disabled:opacity-30 disabled:pointer-events-none"
+          className="w-full mt-1.5 text-center text-[10px] font-mono font-bold text-gray-400 hover:text-accent-red hover:bg-accent-red/10 py-1.5 rounded-xl transition"
         >
           Удалить из библиотеки
         </button>

@@ -28,12 +28,18 @@ async def generate_put_url(bucket_name: str, object_name: str, content_type: str
         logger.info(f"PUT URL successfully generated: {url}")
         return url
 
-async def generate_get_url(bucket_name: str, object_name: str, expiration: int = 3600) -> str:
-    logger.info(f"Requesting S3 presigned GET URL. Bucket: {bucket_name}, Key: {object_name}, TTL: {expiration}s")
+async def generate_get_url(bucket_name: str, object_name: str, expiration: int = 3600, custom_filename: str = None) -> str:
+    logger.info(f"Requesting S3 presigned GET URL. Bucket: {bucket_name}, Key: {object_name}, TTL: {expiration}s, Custom Name: {custom_filename}")
     session = get_s3_session()
     params = _get_presign_params()
     async with session.client(**params) as client:
-        filename = object_name.split("/")[-1]
+        if custom_filename:
+            import re
+            safe_name = re.sub(r'[^\w\s\-\.]', '', custom_filename)
+            filename = safe_name
+        else:
+            filename = object_name.split("/")[-1]
+            
         url = await client.generate_presigned_url(
             ClientMethod='get_object',
             Params={

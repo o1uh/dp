@@ -57,10 +57,14 @@ async def init_upload(data: FileUploadRequest, user_id: str) -> FileUploadRespon
                             
                             if not track:
                                 logger.info(f"No track alias exists for user {user_id}. Creating new virtual Track profile...")
+                                
+                                import os
+                                title_without_ext = os.path.splitext(data.original_filename)[0]
+                                
                                 track = Track(
                                     user_id=uuid.UUID(user_id),
                                     file_id=existing_file.id,
-                                    title=data.original_filename,
+                                    title=title_without_ext,
                                     original_filename=data.original_filename
                                 )
                                 uow.session.add(track)
@@ -69,12 +73,18 @@ async def init_upload(data: FileUploadRequest, user_id: str) -> FileUploadRespon
 
                             for task_orig in allowed_tasks:
                                 logger.info(f"Asserting task mapping cloning for original task: {task_orig.id}, Model: {task_orig.model_config.get('model')}")
+                                
                                 stmt_task_check = select(ProcessingTask).where(
                                     ProcessingTask.file_id == existing_file.id,
-                                    ProcessingTask.user_id == uuid.UUID(user_id),
-                                    ProcessingTask.model_config == task_orig.model_config
+                                    ProcessingTask.user_id == uuid.UUID(user_id)
                                 )
-                                cloned_task = (await uow.session.execute(stmt_task_check)).scalar_one_or_none()
+                                cloned_tasks = (await uow.session.execute(stmt_task_check)).scalars().all()
+                                
+                                target_model = task_orig.model_config.get("model", "htdemucs")
+                                cloned_task = next(
+                                    (t for t in cloned_tasks if t.model_config.get("model") == target_model),
+                                    None
+                                )
 
                                 if not cloned_task:
                                     logger.info(f"Instantiating cloned metadata processing task object for User: {user_id}")
