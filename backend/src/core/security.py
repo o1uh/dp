@@ -1,15 +1,20 @@
 import bcrypt
 import jwt
+import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from src.core.config import settings
 
-def hash_password(password: str) -> str:
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+async def hash_password(password: str) -> str:
+    def _hash():
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+    return await asyncio.to_thread(_hash)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+async def verify_password(plain_password: str, hashed_password: str) -> bool:
+    def _verify():
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    return await asyncio.to_thread(_verify)
 
 def create_access_token(user_id: str, role_id: Optional[str]) -> str:
     expire = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)

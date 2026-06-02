@@ -34,10 +34,11 @@ async def register_user(data: UserCreateRequest) -> None:
             logger.warning("Default role 'b2c_user' not found in database. User will be registered without a role relationship")
 
         logger.info(f"Creating new User model. Hashing password...")
+        hashed_pass = await hash_password(data.password)
         new_user = User(
             username=data.username,
             email=email_str,
-            password_hash=hash_password(data.password),
+            password_hash=hashed_pass,
             role_id=default_role.id if default_role else None,
             is_active=True,
             is_email_verified=False
@@ -101,12 +102,12 @@ async def change_user_password(user_id: str, data: ChangePasswordRequest) -> Non
             raise BusinessRuleError("Invalid old password")
 
         logger.info("Verifying current password validity")
-        if not verify_password(data.old_password, user.password_hash):
+        if not await verify_password(data.old_password, user.password_hash):
             logger.warning(f"Credential update aborted: Password validation failed for User: {user_id}")
             raise BusinessRuleError("Invalid old password")
 
         logger.info(f"Applying password changes. Encrypting new password...")
-        user.password_hash = hash_password(data.new_password)
+        user.password_hash = await hash_password(data.new_password)
         
         logger.info(f"Forcing revocation of all active session tokens for User: {user_id}")
         await auth_repo.revoke_all_user_tokens(user_id)

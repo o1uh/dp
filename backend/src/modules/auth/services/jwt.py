@@ -21,7 +21,7 @@ async def authenticate_user(data: LoginRequest) -> TokenResponse:
             raise AccessDeniedError("Invalid email or password")
 
         logger.info(f"Verifying password for user ID: {user.id}")
-        if not verify_password(data.password, user.password_hash):
+        if not await verify_password(data.password, user.password_hash):
             logger.warning(f"Authentication failed: Password mismatch for user ID: {user.id}")
             raise AccessDeniedError("Invalid email or password")
 

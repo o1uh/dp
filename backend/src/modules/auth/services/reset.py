@@ -66,7 +66,7 @@ async def confirm_password_reset(token: str, new_password: str) -> None:
         user = await user_repo.get_by_id(str(token_record.user_id))
         if user:
             logger.info(f"Hashing new password and updating credentials for User: {user.id}")
-            user.password_hash = hash_password(new_password)
+            user.password_hash = await hash_password(new_password)
             
             logger.info(f"Invalidating all previous active sessions / revoking tokens for User ID: {user.id}")
             await auth_repo.revoke_all_user_tokens(str(user.id))
