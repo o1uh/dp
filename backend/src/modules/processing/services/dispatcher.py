@@ -13,9 +13,9 @@ from src.core.logger import logger
 
 async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
     logger.info(f"Dispatcher payload validation started. User ID: {user_id}, Target File: {file_id}, Parameters: {model_config}")
-    
+
     model_config_dict = dict(model_config) if model_config else {}
-    
+
     env_mock = os.getenv("MOCK_ML_PROCESSING", "False").lower() in ("true", "1", "yes")
     redis_mock = False
     r_client = None
@@ -31,24 +31,24 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
 
     if env_mock or redis_mock:
         model_config_dict["is_mock_mode"] = True
-        logger.info(f"[DISPATCHER] Mock mode active (env={env_mock}, redis={redis_mock}). Injected 'is_mock_mode'=True into config.")
+        # logger.info(f"[DISPATCHER] Mock mode active (env={env_mock}, redis={redis_mock}). Injected 'is_mock_mode'=True into config.")
 
     async with UnitOfWork() as uow:
         file_repo = FileRepository(uow.session)
-        logger.info(f"Resolving physical file profile matching ID: {file_id}")
+        # logger.info(f"Resolving physical file profile matching ID: {file_id}")
         file_obj = await file_repo.get_by_id(file_id)
-        
+
         if not file_obj:
             logger.error(f"Task dispatch aborted. Missing record. File ID: {file_id}")
             raise NotFoundError("File not found")
 
-        logger.info(f"Validating physical file upload state. Status: {file_obj.processing_status}")
+        # logger.info(f"Validating physical file upload state. Status: {file_obj.processing_status}")
         if file_obj.processing_status == FileProcessingStatus.awaiting_upload:
             logger.error(f"Task dispatch aborted. File payload has not yet uploaded or confirmed. File ID: {file_id}")
             raise BusinessRuleError("File upload is not confirmed yet")
-        
+
         from src.modules.library.models import Track
-        
+
         stmt_track_check = select(Track).where(
             Track.file_id == file_obj.id,
             Track.user_id == uuid.UUID(user_id),
@@ -57,10 +57,10 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
         track = (await uow.session.execute(stmt_track_check)).scalar_one_or_none()
 
         if not track:
-            logger.info(f"[DISPATCHER] Creating immediate Track record for User: {user_id}, File: {file_id}")
+            # logger.info(f"[DISPATCHER] Creating immediate Track record for User: {user_id}, File: {file_id}")
             original_filename = file_obj.s3_key_original.split('/')[-1]
             title_without_ext = os.path.splitext(original_filename)[0]
-            
+
             track = Track(
                 user_id=uuid.UUID(user_id),
                 file_id=file_obj.id,
@@ -71,15 +71,15 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
             await uow.session.flush()
 
         model_type = model_config_dict.get("model", "htdemucs")
-        
-        logger.info(f"Scanning tasks repository for existing completed separation tasks for File: {file_obj.id}")
+
+        # logger.info(f"Scanning tasks repository for existing completed separation tasks for File: {file_obj.id}")
         stmt_completed = select(ProcessingTask).where(
             ProcessingTask.file_id == file_obj.id,
             ProcessingTask.status == TaskStatus.completed
         )
         all_completed = (await uow.session.execute(stmt_completed)).scalars().all()
-        logger.info(f"Total matching completed tasks found: {len(all_completed)}")
-        
+        # logger.info(f"Total matching completed tasks found: {len(all_completed)}")
+
         existing_completed_task = next(
             (t for t in all_completed if t.model_config.get("model") == model_type),
             None
@@ -87,21 +87,21 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
 
         if existing_completed_task:
             logger.info(f"Instant clone optimization triggered for User: {user_id}, File: {file_obj.id}, Model Type: '{model_type}'")
-                
-            logger.info("Scanning for existing identical cloned tasks already assigned to this user profile...")
-                
+
+            # logger.info("Scanning for existing identical cloned tasks already assigned to this user profile...")
+
             stmt_task_check = select(ProcessingTask).where(
                 ProcessingTask.file_id == file_obj.id,
                 ProcessingTask.user_id == uuid.UUID(user_id)
             )
             user_tasks = (await uow.session.execute(stmt_task_check)).scalars().all()
-                
+
             cloned_task = next(
                 (t for t in user_tasks if t.model_config.get("model") == model_type),
                 None
-            )                
+            )
             if not cloned_task:
-                logger.info("No matching virtual task found for user. Generating new task entry reflecting original compute timestamps...")
+                # logger.info("No matching virtual task found for user. Generating new task entry reflecting original compute timestamps...")
                 cloned_task = ProcessingTask(
                     user_id=uuid.UUID(user_id),
                     file_id=file_obj.id,
@@ -113,12 +113,12 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
                 )
                 uow.session.add(cloned_task)
                 await uow.session.flush()
-                logger.info(f"Virtual clone processing task established. Cloned Task ID: {cloned_task.id}")
+                # logger.info(f"Virtual clone processing task established. Cloned Task ID: {cloned_task.id}")
 
-            logger.info(f"Resolving stem items generated by original task ID: {existing_completed_task.id}")
+            # logger.info(f"Resolving stem items generated by original task ID: {existing_completed_task.id}")
             stmt_stems = select(Stem).where(Stem.task_id == existing_completed_task.id)
             orig_stems = (await uow.session.execute(stmt_stems)).scalars().all()
-            logger.info(f"Total parent stems located: {len(orig_stems)}")
+            # logger.info(f"Total parent stems located: {len(orig_stems)}")
 
             for s_orig in orig_stems:
                 stmt_us_check = select(UserStem).where(
@@ -126,9 +126,9 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
                     UserStem.stem_id == s_orig.id
                 )
                 existing_us = (await uow.session.execute(stmt_us_check)).scalar_one_or_none()
-                
+
                 if not existing_us:
-                    logger.info(f"Linking UserStem entity to Track ID: {track.id} referencing original Stem ID: {s_orig.id}")
+                    # logger.info(f"Linking UserStem entity to Track ID: {track.id} referencing original Stem ID: {s_orig.id}")
                     user_stem = UserStem(
                         user_id=uuid.UUID(user_id),
                         stem_id=s_orig.id,
@@ -136,15 +136,15 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
                     )
                     uow.session.add(user_stem)
 
-            logger.info("Committing instant clone database transactions context...")
+            # logger.info("Committing instant clone database transactions context...")
             await uow.commit()
             logger.info(f"Task dispatch completed via instant cache map. Task ID: {cloned_task.id}")
             return str(cloned_task.id)
 
-        logger.info(f"Checking existing physical stems in database for File ID: {file_obj.id}")
+        # logger.info(f"Checking existing physical stems in database for File ID: {file_obj.id}")
         stmt_stems = select(Stem).where(Stem.file_id == file_obj.id)
         existing_stems = (await uow.session.execute(stmt_stems)).scalars().all()
-        logger.info(f"Total existing physical stems found: {len(existing_stems)}")
+        # logger.info(f"Total existing physical stems found: {len(existing_stems)}")
 
         if len(existing_stems) >= 4:
             logger.info("Found standard 4 stems. Promoting task configuration parameters to 'cascade_guitar' with local cached inputs...")
@@ -161,7 +161,7 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
         parent_task = None
         if model_config_dict.get("model") == "cascade_guitar" and len(existing_stems) < 4:
             logger.info("Cascade guitar requested but standard 4 stems do not exist. Scheduling prerequisite base HTDemucs parent task...")
-            
+
             parent_config = {"model": "htdemucs"}
             if model_config_dict.get("is_mock_mode"):
                 parent_config["is_mock_mode"] = True
@@ -174,10 +174,10 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
             )
             uow.session.add(parent_task)
             await uow.session.flush()
-            logger.info(f"Parent processing task established with ID: {parent_task.id}")
+            # logger.info(f"Parent processing task established with ID: {parent_task.id}")
             model_config_dict["parent_task_id"] = str(parent_task.id)
 
-        logger.info(f"Registering main processing task entity in DB...")
+        # logger.info(f"Registering main processing task entity in DB...")
         task = ProcessingTask(
             user_id=user_id,
             file_id=file_id,
@@ -185,19 +185,19 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
         )
         uow.session.add(task)
         await uow.session.flush()
-        logger.info(f"Main processing task registered with ID: {task.id}")
+        # logger.info(f"Main processing task registered with ID: {task.id}")
 
         logger.info(f"Forwarding processing task execution to Celery queue 'process_audio'. Task ID: {task.id}")
         celery_task = celery_app.send_task(
             "process_audio",
             args=[str(task.id), file_obj.s3_key_original, file_id, model_config_dict]
         )
-        
-        logger.info(f"Celery task successfully queued with Job ID: {celery_task.id}")
+
+        # logger.info(f"Celery task successfully queued with Job ID: {celery_task.id}")
         task.celery_task_id = celery_task.id
         if parent_task:
             parent_task.celery_task_id = celery_task.id
 
         await uow.commit()
-        logger.info("Database transaction committed successfully. Celery queue dispatch complete.")
+        # logger.info("Database transaction committed successfully. Celery queue dispatch complete.")
         return str(task.id)

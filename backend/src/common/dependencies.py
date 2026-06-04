@@ -13,7 +13,7 @@ async def get_current_user(
     request: Request,
     session: AsyncSession = Depends(get_session)
 ) -> User:
-    logger.info(f"Extracting user session from incoming request context. Path: {request.url.path}")
+    # logger.info(f"Extracting user session from incoming request context. Path: {request.url.path}")
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         logger.warning("Authentication failed: Missing Authorization header in request context")
@@ -27,9 +27,9 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid authorization header"
         )
-    
+
     token = auth_header.split(" ")[1]
-    logger.info("Decoding authorization Bearer token...")
+    # logger.info("Decoding authorization Bearer token...")
     try:
         payload = decode_token(token)
     except ValueError as e:
@@ -38,18 +38,18 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e)
         )
-    
+
     user_id = payload.get("sub")
-    logger.info(f"Token decoded. Asserting claims for Subject ID: {user_id}")
+    # logger.info(f"Token decoded. Asserting claims for Subject ID: {user_id}")
     if not user_id:
         logger.warning("Authentication failed: Subject claim 'sub' is empty inside token payload")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload"
         )
-        
+
     repo = UserRepository(session)
-    logger.info(f"Retrieving active user structure from database using Subject ID: {user_id}")
+    # logger.info(f"Retrieving active user structure from database using Subject ID: {user_id}")
     user = await repo.get_by_id(user_id)
     if not user:
         logger.warning(f"Authentication failed: User ID {user_id} does not exist or has been logically deleted")
@@ -69,8 +69,7 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive"
         )
-        
-    logger.info(f"User session validation successful. Extracted User ID: {user.id}")
+
     return user
 
 class RoleChecker:
@@ -82,23 +81,22 @@ class RoleChecker:
         user: User = Depends(get_current_user),
         session: AsyncSession = Depends(get_session)
     ) -> User:
-        logger.info(f"Authorizing client permissions. User: {user.id}. Allowed Roles list: {self.allowed_roles}")
+        # logger.info(f"Authorizing client permissions. User: {user.id}. Allowed Roles list: {self.allowed_roles}")
         if not user.role_id:
             logger.warning(f"Authorization failed: User ID {user.id} has no assigned role reference")
             raise AccessDeniedError("User has no role")
-            
+
         repo = RoleRepository(session)
-        logger.info(f"Retrieving role definition metadata using Identifier: {user.role_id}")
+        # logger.info(f"Retrieving role definition metadata using Identifier: {user.role_id}")
         role = await repo.get_by_id(str(user.role_id))
-        
+
         if not role:
             logger.warning(f"Authorization failed: DB schema violation, role template ID {user.role_id} missing from lookup tables")
             raise AccessDeniedError("Insufficient permissions")
-            
-        logger.info(f"Extracted role catalog metrics - User: {user.id}, Role Name: '{role.name}'")
+
+        # logger.info(f"Extracted role catalog metrics - User: {user.id}, Role Name: '{role.name}'")
         if role.name not in self.allowed_roles:
             logger.warning(f"Authorization failed: Role match failed. Role '{role.name}' is not in permitted list {self.allowed_roles} for User: {user.id}")
             raise AccessDeniedError("Insufficient permissions")
-            
-        logger.info(f"Access granted to route context for User: {user.id} with Role: '{role.name}'")
+
         return user
