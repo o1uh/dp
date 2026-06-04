@@ -9,6 +9,88 @@ import { SaveToLibraryBtn } from '@/features/catalog/SaveToLibraryBtn';
 import { QUERY_KEYS } from '@/shared/api/query-keys';
 import { useUserStore } from '@/entities/user/model/store';
 import { useAudioQueueStore } from '@/entities/audio_queue/model/store';
+import { ProcessedModelInfo } from '@/entities/track/api';
+
+const MODEL_LABELS: Record<string, string> = {
+  htdemucs: 'HTDemucs',
+  cascade_guitar: 'Cascade',
+  render: 'Render'
+};
+
+const formatStemIndicator = (models: ProcessedModelInfo[] | undefined) => {
+  if (!models || models.length === 0) {
+    return {
+      count: 0,
+      label: 'Нет стемов',
+      tone: 'muted' as const,
+      tooltip: 'Трек ещё не обработан нейросетью'
+    };
+  }
+
+  const total = Math.max(...models.map(m => m.stem_count));
+  const hasCascade = models.some(m => m.model_name === 'cascade_guitar');
+  const hasRender = models.some(m => m.model_name === 'render');
+  const hasHtdemucs = models.some(m => m.model_name === 'htdemucs');
+
+  const modelNames = models
+    .map(m => MODEL_LABELS[m.model_name] ?? m.model_name)
+    .join(' + ');
+
+  if (hasCascade) {
+    return {
+      count: 5,
+      label: '5 STEMS',
+      tone: 'secondary' as const,
+      tooltip: `5 стемов (${modelNames})`
+    };
+  }
+
+  if (hasRender && !hasHtdemucs) {
+    return {
+      count: 1,
+      label: '1 STEM',
+      tone: 'muted' as const,
+      tooltip: `1 стем (${modelNames})`
+    };
+  }
+
+  if (hasHtdemucs && hasRender) {
+    return {
+      count: 4,
+      label: '4 STEMS',
+      tone: 'muted' as const,
+      tooltip: `4 стема HTDemucs + 1 Render (${total} доступно)`
+    };
+  }
+
+  return {
+    count: total,
+    label: `${total} STEMS`,
+    tone: 'muted' as const,
+    tooltip: `${total} стемов (${modelNames})`
+  };
+};
+
+const StemsIndicator: React.FC<{ models?: ProcessedModelInfo[] }> = ({ models }) => {
+  const indicator = formatStemIndicator(models);
+
+  const toneClass =
+    indicator.tone === 'secondary'
+      ? 'bg-secondary/15 text-secondary border-secondary/30'
+      : 'bg-background-deep text-gray-400 border-border';
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 text-[9px] font-mono font-bold px-2 py-1 rounded-lg border ${toneClass}`}
+      title={indicator.tooltip}
+    >
+      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+      </svg>
+      <span className="tracking-wider">{indicator.label}</span>
+    </div>
+  );
+};
 
 export const CatalogView = () => {
   const searchParams = useSearchParams();
@@ -92,10 +174,20 @@ export const CatalogView = () => {
                       <span className="text-sm font-semibold text-gray-200 truncate group-hover:text-primary transition cursor-pointer">
                         {track.title}
                       </span>
-                      <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-gray-500 uppercase">
+                      <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-gray-500 uppercase flex-wrap">
                         <span>{track.genre || 'Default'}</span>
                         <span className="w-1 h-1 rounded-full bg-border" />
-                        <span>{track.play_count} прослушиваний</span>
+                        <span>{track.save_count} сохранений</span>
+                        {track.original_filename && (
+                          <>
+                            <span className="w-1 h-1 rounded-full bg-border" />
+                            <span>
+                              {track.original_filename.split('.').pop()?.toUpperCase()}
+                            </span>
+                          </>
+                        )}
+                        <span className="w-1 h-1 rounded-full bg-border" />
+                        <StemsIndicator models={track.processed_models} />
                       </div>
                     </div>
                   </div>

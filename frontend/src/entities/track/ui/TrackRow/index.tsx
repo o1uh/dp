@@ -189,7 +189,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
                 <button
                   onClick={handleReprocess}
                   disabled={isProcessingActive}
-                  className="text-[9px] font-mono font-bold px-2 py-1 rounded-lg bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20 transition flex items-center gap-1 active:scale-95"
+                  className="text-[9px] font-mono font-bold px-2 py-1 rounded-lg bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20 transition flex items-center gap-1 active:scale-95 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
                 >
                   ⭐ До 5 стемов
                 </button>
@@ -237,7 +237,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
             <button 
               onClick={() => !isActionsDisabled && setPlaylist([track], 0)}
               disabled={isActionsDisabled}
-              className="px-3 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 shadow-glow-primary active:scale-95"
+              className="px-3 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 shadow-glow-primary active:scale-95 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed disabled:shadow-none"
             >
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M8 5v14l11-7z" />
@@ -251,7 +251,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
                   <button 
                     onClick={() => !isProcessingActive && setShowVersionMenu(!showVersionMenu)}
                     disabled={isProcessingActive}
-                    className="w-full px-3 py-2 bg-secondary hover:bg-secondary-hover text-white text-xs font-bold rounded-xl transition active:scale-95 flex items-center justify-center gap-1"
+                    className="w-full px-3 py-2 bg-secondary hover:bg-secondary-hover text-white text-xs font-bold rounded-xl transition active:scale-95 flex items-center justify-center gap-1 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
                   >
                     В студию
                     <svg className={`w-2.5 h-2.5 transition-transform ${showVersionMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -284,7 +284,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
                 >
                   <button 
                     disabled={isProcessingActive}
-                    className="w-full px-3 py-2 bg-secondary hover:bg-secondary-hover text-white text-xs font-bold rounded-xl transition active:scale-95"
+                    className="w-full px-3 py-2 bg-secondary hover:bg-secondary-hover text-white text-xs font-bold rounded-xl transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
                   >
                     В студию
                   </button>
@@ -295,7 +295,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
             <button 
               onClick={() => !isUnavailable && onDownload(track.id)}
               disabled={isActionsDisabled}
-              className="px-3 py-2 bg-background-elevated hover:bg-background-deep border border-border text-gray-200 hover:text-gray-100 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5"
+              className="px-3 py-2 bg-background-elevated hover:bg-background-deep border border-border text-gray-200 hover:text-gray-100 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
             >
               Скачать
             </button>
@@ -304,7 +304,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
               <button 
                 onClick={() => onEdit(track)}
                 disabled={isProcessingActive}
-                className="px-3 py-2 bg-background-elevated hover:bg-background-deep border border-border text-gray-200 hover:text-gray-100 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5"
+                className="px-3 py-2 bg-background-elevated hover:bg-background-deep border border-border text-gray-200 hover:text-gray-100 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
               >
                 Инфо
               </button>
@@ -320,7 +320,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({ track, onDownload, onDelete,
         <button 
           onClick={() => onDelete(track.id)}
           disabled={isProcessingActive}
-          className="w-full mt-1.5 text-center text-[10px] font-mono font-bold text-gray-400 hover:text-accent-red hover:bg-accent-red/10 py-1.5 rounded-xl transition"
+          className="w-full mt-1.5 text-center text-[10px] font-mono font-bold text-gray-400 hover:text-accent-red hover:bg-accent-red/10 py-1.5 rounded-xl transition disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
         >
           Удалить из библиотеки
         </button>

@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from src.common.enums import VisibilityStatus
+from src.modules.library.schemas import ProcessedModelInfo
 
 class CatalogTrackResponse(BaseModel):
     id: str
@@ -17,6 +18,7 @@ class CatalogTrackResponse(BaseModel):
     downloads_count: int
     created_at: datetime
     is_saved: bool
+    processed_models: List[ProcessedModelInfo] = []
 
 class SearchResultResponse(BaseModel):
     items: List[CatalogTrackResponse]
