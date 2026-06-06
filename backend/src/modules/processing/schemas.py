@@ -1,10 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from src.common.enums import TaskStatus
 
 class TaskStartRequest(BaseModel):
     file_id: str
     config: Dict[str, str]
+    title: Optional[str] = Field(default=None, description="User-provided display name for the track")
 
 class TaskStatusResponse(BaseModel):
     id: str

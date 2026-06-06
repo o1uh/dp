@@ -60,16 +60,20 @@ async def init_upload(data: FileUploadRequest, user_id: str) -> FileUploadRespon
 
                                 import os
                                 title_without_ext = os.path.splitext(data.original_filename)[0]
+                                resolved_title = (data.title or "").strip() or title_without_ext
 
                                 track = Track(
                                     user_id=uuid.UUID(user_id),
                                     file_id=existing_file.id,
-                                    title=title_without_ext,
+                                    title=resolved_title,
                                     original_filename=data.original_filename
                                 )
                                 uow.session.add(track)
                                 await uow.session.flush()
                                 # logger.info(f"Virtual Track profile registered with ID: {track.id}")
+                            elif data.title and data.title.strip() and data.title.strip() != track.title:
+                                # logger.info(f"Updating existing virtual Track title. Track ID: {track.id}")
+                                track.title = data.title.strip()
 
                             for task_orig in allowed_tasks:
                                 # logger.info(f"Asserting task mapping cloning for original task: {task_orig.id}, Model: {task_orig.model_config.get('model')}")

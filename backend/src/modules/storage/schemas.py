@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from uuid import UUID
 
@@ -9,6 +9,7 @@ class FileUploadRequest(BaseModel):
     duration_sec: float
     original_filename: str
     separation_mode: Optional[str] = "htdemucs"
+    title: Optional[str] = Field(default=None, description="User-provided display name for the track")
 
 class FileUploadResponse(BaseModel):
     is_duplicate: bool

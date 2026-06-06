@@ -63,6 +63,7 @@ export const UploadZone = () => {
     if (!pendingFile) return;
     const file = pendingFile;
     const modelToUse = selectedModel;
+    const userTitle = trackTitle.trim() || file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
 
     setPendingFile(null);
     setStatus('hashing');
@@ -90,8 +91,9 @@ export const UploadZone = () => {
             mime_type: file.type,
             file_size_bytes: file.size,
             duration_sec: duration,
-            original_filename: `${trackTitle}${file.name.substring(file.name.lastIndexOf('.'))}`,
-            separation_mode: modelToUse
+            original_filename: `${userTitle}${file.name.substring(file.name.lastIndexOf('.'))}`,
+            separation_mode: modelToUse,
+            title: userTitle
           });
 
           if (initRes.is_duplicate) {
@@ -104,7 +106,8 @@ export const UploadZone = () => {
             } else {
               await apiClient.post('/tasks', {
                 file_id: initRes.file_id,
-                config: { model: modelToUse }
+                config: { model: modelToUse },
+                title: userTitle
               });
               setStatus('ready');
               queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRACKS.LIST(userId) });
@@ -119,7 +122,8 @@ export const UploadZone = () => {
 
             await apiClient.post('/tasks', {
               file_id: initRes.file_id,
-              config: { model: modelToUse }
+              config: { model: modelToUse },
+              title: userTitle
             });
 
             setStatus('ready');

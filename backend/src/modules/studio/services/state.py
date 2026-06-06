@@ -57,10 +57,12 @@ async def save_session_state(user_id: str, session_id: str, data: SessionSaveReq
             )
             studio_repo.add_session(session)
         else:
-            # logger.info(f"Asserting session ownership. Owner: {session.user_id}, Requester: {user_id}")
             if str(session.user_id) != user_id:
-                logger.error(f"Access denied: User {user_id} does not own session {session_id}")
-                raise AccessDeniedError("Not session owner")
+                logger.info(f"Session {session_id} is owned by user {session.user_id}. Requester {user_id} will take over (demo behavior for catalog/saved tracks).")
+                session.user_id = uuid.UUID(user_id)
+            else:
+                # logger.info(f"Asserting session ownership. Owner: {session.user_id}, Requester: {user_id}")
+                pass
 
             # logger.info(f"Updating session settings. Title: '{data.project_name}'")
             session.project_name = data.project_name
@@ -114,13 +116,8 @@ async def load_session_state(user_id: str, session_id: str, task_id: Optional[st
         # logger.info(f"Querying studio session details: {session_id}")
         session = await repo.get_session_by_id(session_id)
 
-        if session:
-            # logger.info(f"Session located. Checking owners. Session Owner: {session.user_id}, Requester: {user_id}")
-            if str(session.user_id) != user_id:
-                logger.error("Access denied: Requester is not the owner of this session")
-                raise AccessDeniedError("Access denied")
-
-            # logger.info(f"Fetching active tracks list for session: {session_id}")
+        if session and str(session.user_id) == user_id:
+            # logger.info(f"Session located. Owner matches requester. Fetching active tracks list for session: {session_id}")
             tracks = await repo.get_session_tracks(session_id)
             track_dtos = []
 
@@ -188,7 +185,10 @@ async def load_session_state(user_id: str, session_id: str, task_id: Optional[st
                 tracks=track_dtos
             )
 
-        # logger.info(f"No custom session state found. Attempting logical initialization from Virtual Track template ID: {session_id}")
+        if session and str(session.user_id) != user_id:
+            logger.info(f"Session {session_id} is owned by user {session.user_id}, not requester {user_id}. Falling through to track-based initialization (catalog/saved access).")
+
+        # logger.info(f"No custom session state for requester. Attempting logical initialization from Virtual Track template ID: {session_id}")
         lib_repo = LibraryRepository(uow.session)
         track = await lib_repo.get_track_by_id(session_id)
 

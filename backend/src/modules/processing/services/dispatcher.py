@@ -1,5 +1,6 @@
 import uuid
 import os
+from typing import Optional
 from sqlalchemy import select
 from src.infrastructure.db.uow import UnitOfWork
 from src.modules.processing.models import ProcessingTask, Stem
@@ -11,7 +12,7 @@ from src.common.enums import FileProcessingStatus, TaskStatus
 from src.infrastructure.redis.client import get_redis_client
 from src.core.logger import logger
 
-async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
+async def dispatch_task(user_id: str, file_id: str, model_config: dict, title: Optional[str] = None) -> str:
     logger.info(f"Dispatcher payload validation started. User ID: {user_id}, Target File: {file_id}, Parameters: {model_config}")
 
     model_config_dict = dict(model_config) if model_config else {}
@@ -60,15 +61,18 @@ async def dispatch_task(user_id: str, file_id: str, model_config: dict) -> str:
             # logger.info(f"[DISPATCHER] Creating immediate Track record for User: {user_id}, File: {file_id}")
             original_filename = file_obj.s3_key_original.split('/')[-1]
             title_without_ext = os.path.splitext(original_filename)[0]
+            resolved_title = (title or "").strip() or title_without_ext
 
             track = Track(
                 user_id=uuid.UUID(user_id),
                 file_id=file_obj.id,
-                title=title_without_ext,
+                title=resolved_title,
                 original_filename=original_filename
             )
             uow.session.add(track)
             await uow.session.flush()
+        elif title and title.strip() and title.strip() != track.title:
+            track.title = title.strip()
 
         model_type = model_config_dict.get("model", "htdemucs")
 
