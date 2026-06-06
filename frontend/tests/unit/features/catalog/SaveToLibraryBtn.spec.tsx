@@ -26,15 +26,16 @@ describe('SaveToLibraryBtn', () => {
       </QueryClientProvider>
     );
 
-    const button = screen.getByText('В библиотеку');
+    const button = screen.getByRole('button', { name: /В библиотеку/ });
     expect(button).toBeInTheDocument();
     expect(button).not.toBeDisabled();
 
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText('Сохранено')).toBeInTheDocument();
-      expect(screen.getByText('Сохранено')).toBeDisabled();
+      const saved = screen.getByRole('button', { name: /Добавлено/ });
+      expect(saved).toBeInTheDocument();
+      expect(saved).toBeDisabled();
     });
 
     expect(catalogApi.saveAlias).toHaveBeenCalledWith('test-track-id');
@@ -50,10 +51,10 @@ describe('SaveToLibraryBtn', () => {
       </QueryClientProvider>
     );
 
-    const button = screen.getByText('Сохранено');
+    const button = screen.getByRole('button', { name: /Добавлено/ });
     expect(button).toBeInTheDocument();
     expect(button).toBeDisabled();
-    
+
     expect(catalogApi.saveAlias).not.toHaveBeenCalled();
   });
 });

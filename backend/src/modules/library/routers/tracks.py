@@ -189,8 +189,11 @@ async def delete_track(track_id: str, current_user: User = Depends(get_current_u
                 UserSavedTrack.user_id == current_user.id,
                 UserSavedTrack.track_id == track.id
             )
-            await uow.session.execute(stmt)
-            
+            result = await uow.session.execute(stmt)
+
+            if result.rowcount > 0 and track.save_count > 0:
+                track.save_count -= 1
+
         await uow.commit()
 
 @router.get("/{track_id}/download")

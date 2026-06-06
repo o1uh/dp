@@ -9,26 +9,50 @@ import { QUERY_KEYS } from '@/shared/api/query-keys';
 interface SaveToLibraryBtnProps {
   trackId: string;
   isSaved: boolean;
+  className?: string;
 }
 
-export const SaveToLibraryBtn: React.FC<SaveToLibraryBtnProps> = ({ trackId, isSaved }) => {
+export const SaveToLibraryBtn: React.FC<SaveToLibraryBtnProps> = ({ trackId, isSaved, className = '' }) => {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: () => catalogApi.saveAlias(trackId),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['catalog'] });
+      const prev = queryClient.getQueriesData({ queryKey: ['catalog'] });
+
+      queryClient.setQueriesData<any>({ queryKey: ['catalog'] }, (old) => {
+        if (!old?.items) return old;
+        return {
+          ...old,
+          items: old.items.map((t: any) =>
+            t.id === trackId
+              ? { ...t, is_saved: true, save_count: (t.save_count ?? 0) + 1 }
+              : t
+          )
+        };
+      });
+
+      return { prev };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['catalog'] });
       queryClient.invalidateQueries({ queryKey: ['tracks'] });
+    },
+    onError: (_err, _vars, ctx) => {
+      ctx?.prev?.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
     }
   });
 
   const isCompleted = isSaved || mutation.isSuccess;
 
   return (
-    <Button 
+    <Button
       variant={isCompleted ? 'ghost' : 'secondary'}
       size="sm"
-      className={isCompleted ? 'text-accent-green border-accent-green/20' : ''}
+      className={`${className}${isCompleted ? ' text-accent-green border-accent-green/20' : ''}`}
       onClick={() => mutation.mutate()}
       disabled={isCompleted || mutation.isPending}
       leftIcon={
@@ -43,7 +67,7 @@ export const SaveToLibraryBtn: React.FC<SaveToLibraryBtnProps> = ({ trackId, isS
         )
       }
     >
-      {isCompleted ? 'Сохранено' : 'В библиотеку'}
+      {isCompleted ? 'Добавлено' : 'В библиотеку'}
     </Button>
   );
 };
